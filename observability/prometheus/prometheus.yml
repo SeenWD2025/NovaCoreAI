@@ -1,0 +1,111 @@
+# Prometheus Configuration for Noble NovaCoreAI
+global:
+  scrape_interval: 15s # Scrape metrics every 15 seconds
+  evaluation_interval: 15s # Evaluate rules every 15 seconds
+  external_labels:
+    cluster: 'noble-novacore'
+    environment: 'production'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Gateway service
+  - job_name: 'gateway'
+    static_configs:
+      - targets: ['gateway:5000']
+        labels:
+          service: 'gateway'
+          layer: 'api'
+    metrics_path: '/metrics'
+
+  # Auth & Billing service
+  - job_name: 'auth-billing'
+    static_configs:
+      - targets: ['auth-billing:3001']
+        labels:
+          service: 'auth-billing'
+          layer: 'backend'
+    metrics_path: '/metrics'
+
+  # Intelligence Core service
+  - job_name: 'intelligence'
+    static_configs:
+      - targets: ['intelligence:8000']
+        labels:
+          service: 'intelligence'
+          layer: 'ai'
+    metrics_path: '/metrics'
+
+  # Cognitive Memory service
+  - job_name: 'memory'
+    static_configs:
+      - targets: ['memory:8001']
+        labels:
+          service: 'memory'
+          layer: 'data'
+    metrics_path: '/metrics'
+
+  # Noble-Spirit Policy service
+  - job_name: 'noble-spirit'
+    static_configs:
+      - targets: ['noble-spirit:4000']
+        labels:
+          service: 'noble-spirit'
+          layer: 'policy'
+    metrics_path: '/metrics'
+
+  # NGS Curriculum service
+  - job_name: 'ngs-curriculum'
+    static_configs:
+      - targets: ['ngs-curriculum:9000']
+        labels:
+          service: 'ngs-curriculum'
+          layer: 'gamification'
+    metrics_path: '/metrics'
+
+  # MCP Server service
+  - job_name: 'mcp-server'
+    static_configs:
+      - targets: ['mcp-server:7000']
+        labels:
+          service: 'mcp-server'
+          layer: 'integration'
+    metrics_path: '/mcp/metrics'
+
+  # PostgreSQL exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          layer: 'database'
+
+  # Redis exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          layer: 'cache'
+
+  # Node exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          layer: 'infrastructure'

@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
 from contextlib import asynccontextmanager
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
 from app.database import test_connection
@@ -66,6 +67,9 @@ app.add_middleware(
 
 # Include routers
 app.include_router(chat.router)
+
+# Add Prometheus metrics
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 @app.get("/health", response_model=HealthResponse)
