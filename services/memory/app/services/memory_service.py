@@ -15,6 +15,8 @@ from app.models.schemas import (
 )
 from app.config import settings
 from app.services.embedding_service import embedding_service
+from app.utils.storage_calculator import storage_calculator
+from app.services.usage_service import usage_service
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,17 @@ class MemoryService:
         """
         try:
             memory_id = str(uuid.uuid4())
+            
+            # Calculate storage size before storing
+            storage_size = storage_calculator.calculate_memory_size(
+                input_context=request.input_context,
+                output_response=request.output_response,
+                tags=request.tags,
+                metadata=None,
+                embedding_dimension=384
+            )
+            
+            logger.info(f"Memory storage size calculated: {storage_size} bytes ({storage_calculator.bytes_to_human_readable(storage_size)})")
             
             # Generate embedding for semantic search
             combined_text = f"{request.input_context} {request.output_response or ''}"
@@ -114,6 +127,25 @@ class MemoryService:
             })
             
             db.commit()
+            
+            # Record storage usage in ledger
+            try:
+                usage_service.record_storage_usage(
+                    db=db,
+                    user_id=user_id,
+                    memory_id=memory_id,
+                    size_bytes=storage_size,
+                    operation="create",
+                    metadata={
+                        "tier": request.tier.value,
+                        "type": request.type.value,
+                        "session_id": request.session_id
+                    }
+                )
+                logger.info(f"Recorded storage usage for memory {memory_id}")
+            except Exception as usage_err:
+                logger.error(f"Failed to record storage usage: {usage_err}")
+                # Don't fail the memory creation if usage tracking fails
             
             # Retrieve and return the created memory
             return self.get_memory(db, user_id, memory_id)
