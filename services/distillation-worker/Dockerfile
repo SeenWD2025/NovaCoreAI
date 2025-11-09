@@ -16,4 +16,4 @@ RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pyth
 COPY . .
 
 # Run the scheduler
-CMD ["python", "-m", "app.scheduler"]
+CMD ["python", "main.py"]

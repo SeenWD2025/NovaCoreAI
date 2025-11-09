@@ -161,3 +161,44 @@ class SessionService:
         result = db.execute(query, {"user_id": str(user_id)})
         row = result.fetchone()
         return row[0] if row else 0
+    
+    @staticmethod
+    def get_user_tier(db: Session, user_id: UUID) -> str:
+        """Get user's subscription tier."""
+        try:
+            query = text("""
+                SELECT subscription_tier
+                FROM users
+                WHERE id = :user_id
+            """)
+            result = db.execute(query, {"user_id": str(user_id)})
+            row = result.fetchone()
+            return row[0] if row else "free_trial"
+        except Exception as e:
+            logger.error(f"Failed to get user tier: {e}")
+            return "free_trial"
+    
+    @staticmethod
+    def track_token_usage(db: Session, user_id: UUID, tokens_used: int) -> bool:
+        """Track token usage in usage_ledger."""
+        try:
+            import json
+            query = text("""
+                INSERT INTO usage_ledger (user_id, resource_type, amount, metadata, timestamp)
+                VALUES (:user_id, :resource_type, :amount, :metadata::jsonb, NOW())
+            """)
+            db.execute(
+                query,
+                {
+                    "user_id": str(user_id),
+                    "resource_type": "llm_tokens",
+                    "amount": tokens_used,
+                    "metadata": json.dumps({})
+                }
+            )
+            db.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to track token usage: {e}")
+            db.rollback()
+            return False
