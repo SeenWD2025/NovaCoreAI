@@ -182,9 +182,10 @@ class SessionService:
     def track_token_usage(db: Session, user_id: UUID, tokens_used: int) -> bool:
         """Track token usage in usage_ledger."""
         try:
+            import json
             query = text("""
                 INSERT INTO usage_ledger (user_id, resource_type, amount, metadata, timestamp)
-                VALUES (:user_id, :resource_type, :amount, :metadata, NOW())
+                VALUES (:user_id, :resource_type, :amount, :metadata::jsonb, NOW())
             """)
             db.execute(
                 query,
@@ -192,7 +193,7 @@ class SessionService:
                     "user_id": str(user_id),
                     "resource_type": "llm_tokens",
                     "amount": tokens_used,
-                    "metadata": {}
+                    "metadata": json.dumps({})
                 }
             )
             db.commit()
