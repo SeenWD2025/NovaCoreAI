@@ -158,6 +158,33 @@ app.use(
   })
 );
 
+// Usage service proxy (requires authentication)
+app.use(
+  '/api/usage',
+  authenticateToken,
+  createProxyMiddleware({
+    target: AUTH_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/usage': '/usage',
+    },
+    onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (req.user) {
+        proxyReq.setHeader('X-User-Id', req.user.userId);
+        proxyReq.setHeader('X-User-Email', req.user.email);
+        proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+    },
+    onError: (err, req, res: any) => {
+      console.error('Usage service proxy error:', err.message);
+      res.status(503).json({
+        error: 'Usage service unavailable',
+        message: err.message,
+      });
+    },
+  })
+);
+
 // Intelligence service proxy (requires authentication)
 app.use(
   '/api/chat',
@@ -200,6 +227,9 @@ app.use(
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
         proxyReq.setHeader('X-User-Role', req.user.role);
+        // Note: User tier should be fetched from auth service in production
+        // For now, we'll let the memory service handle tier lookup
+        proxyReq.setHeader('X-User-Tier', 'free_trial'); // TODO: Fetch actual tier
       }
     },
     onError: (err, req, res: any) => {
