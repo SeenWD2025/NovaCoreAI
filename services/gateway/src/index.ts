@@ -239,6 +239,34 @@ app.use(
   })
 );
 
+// MCP Server proxy (requires authentication)
+const MCP_SERVICE_URL = process.env.MCP_SERVICE_URL || 'http://localhost:7000';
+app.use(
+  '/api/mcp',
+  authenticateToken,
+  createProxyMiddleware({
+    target: MCP_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/mcp': '/mcp',
+    },
+    onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (req.user) {
+        proxyReq.setHeader('X-User-Id', req.user.userId);
+        proxyReq.setHeader('X-User-Email', req.user.email);
+        proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+    },
+    onError: (err, req, res: any) => {
+      console.error('MCP service proxy error:', err.message);
+      res.status(503).json({
+        error: 'MCP service unavailable',
+        message: err.message,
+      });
+    },
+  })
+);
+
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', err);

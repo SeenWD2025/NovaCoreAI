@@ -1,0 +1,119 @@
+{
+  "name": "noble-novacore-vscode",
+  "displayName": "Noble NovaCoreAI",
+  "description": "AI-powered code assistance with persistent memory and context awareness",
+  "version": "0.1.0",
+  "publisher": "noble-novacore",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "assistant",
+    "copilot",
+    "memory",
+    "context"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "novacore.authenticate",
+        "title": "NovaCoreAI: Authenticate"
+      },
+      {
+        "command": "novacore.fetchContext",
+        "title": "NovaCoreAI: Fetch Context for Current File"
+      },
+      {
+        "command": "novacore.submitTask",
+        "title": "NovaCoreAI: Submit Task"
+      },
+      {
+        "command": "novacore.showMemories",
+        "title": "NovaCoreAI: Show Memories"
+      },
+      {
+        "command": "novacore.logout",
+        "title": "NovaCoreAI: Logout"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "novacore-sidebar",
+          "title": "NovaCoreAI",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "novacore-sidebar": [
+        {
+          "id": "novacore.contextView",
+          "name": "File Context"
+        },
+        {
+          "id": "novacore.memoriesView",
+          "name": "Recent Memories"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "NovaCoreAI",
+      "properties": {
+        "novacore.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:5000",
+          "description": "NovaCoreAI API Gateway URL"
+        },
+        "novacore.autoFetchContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically fetch context when opening files"
+        },
+        "novacore.autoLogChanges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically log code changes to memory"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3",
+    "@vscode/test-electron": "^2.3.9"
+  },
+  "dependencies": {
+    "axios": "^1.7.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SeenWD2025/NovaCoreAI"
+  },
+  "license": "MIT",
+  "author": "Noble NovaCoreAI Team"
+}
