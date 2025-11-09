@@ -108,7 +108,8 @@ async def send_message(
     estimated_tokens = token_counter.count_tokens(full_prompt) + 500  # +500 for response
     
     # Check token limits (get user tier from database)
-    check_token_limit(db, user_id, estimated_tokens, "free_trial")  # TODO: Get actual tier
+    user_tier = SessionService.get_user_tier(db, user_id)
+    check_token_limit(db, user_id, estimated_tokens, user_tier)
     
     # Generate response
     system_prompt = "You are Noble NovaCoreAI, an ethical AI assistant focused on truth, wisdom, and human flourishing. Provide thoughtful, helpful responses aligned with the Reclaimer Ethos."
@@ -127,6 +128,9 @@ async def send_message(
     SessionService.store_prompt(
         db, session_id, user_id, message.message, response_text, tokens_used, latency_ms
     )
+    
+    # Track usage in usage_ledger
+    SessionService.track_token_usage(db, user_id, tokens_used)
     
     # Store in STM (Short-Term Memory) for fast context retrieval
     await integration_service.store_stm_interaction(
@@ -202,7 +206,8 @@ async def stream_message(
     
     # Estimate tokens for rate limiting
     estimated_tokens = token_counter.count_tokens(full_prompt) + 500
-    check_token_limit(db, user_id, estimated_tokens, "free_trial")  # TODO: Get actual tier
+    user_tier = SessionService.get_user_tier(db, user_id)
+    check_token_limit(db, user_id, estimated_tokens, user_tier)
     
     async def generate():
         """Generate streaming response."""
@@ -231,6 +236,9 @@ async def stream_message(
                 db, session_id, user_id, message.message, 
                 accumulated_response, tokens_used, latency_ms
             )
+            
+            # Track usage in usage_ledger
+            SessionService.track_token_usage(db, user_id, tokens_used)
             
             # Store in STM for fast context retrieval (don't await in generator)
             try:
