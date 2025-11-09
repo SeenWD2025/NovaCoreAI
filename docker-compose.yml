@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: noble-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-noble}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-noble_novacore}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./shared/schemas:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-noble}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: noble-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile
+    container_name: noble-gateway
+    environment:
+      - PORT=5000
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - REDIS_URL=redis://redis:6379
+      - AUTH_SERVICE_URL=http://auth-billing:3001
+      - INTELLIGENCE_SERVICE_URL=http://intelligence:8000
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - POLICY_SERVICE_URL=http://noble-spirit:4000
+      - NGS_SERVICE_URL=http://ngs-curriculum:9000
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/gateway:/app
+      - /app/node_modules
+
+  # Service stubs - These are minimal implementations showing architecture
+  # Full implementations will be added in their respective phases
+  
+  auth-billing:
+    build:
+      context: ./services/auth-billing
+    container_name: noble-auth
+    environment:
+      - PORT=3001
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/auth-billing:/app
+      - /app/node_modules
+  
+  intelligence:
+    build:
+      context: ./services/intelligence
+    container_name: noble-intelligence
+    environment:
+      - PORT=8000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  
+  memory:
+    build:
+      context: ./services/memory
+    container_name: noble-memory
+    environment:
+      - PORT=8001
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  
+  ngs-curriculum:
+    build:
+      context: ./services/ngs-curriculum
+    container_name: noble-ngs
+    environment:
+      - PORT=9000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+    ports:
+      - "9000:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  
+  frontend:
+    build:
+      context: ./services/frontend
+    container_name: noble-frontend
+    environment:
+      - PORT=5173
+      - VITE_API_URL=http://gateway:5000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway
+    volumes:
+      - ./services/frontend:/app
+      - /app/node_modules
+  
+  # Elixir (noble-spirit) and Rust (mcp-server) stubs to be added in Phases 6 & 11
+
+volumes:
+  postgres_data:
+  redis_data:

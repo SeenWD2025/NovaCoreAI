@@ -1,0 +1,56 @@
+Noble NovaCoreAI
+🎯 Mission & Vision
+Noble NovaCoreAI is not another chatbot or AI assistant. It's an AI platform in active development designed with a singular purpose: human liberation through automation. Unlike conventional AI systems that prioritize user satisfaction and data aggregation, Noble NovaCoreAI is aligned with the "Reclaimer Ethos" - serving humanity by prioritizing truth, wisdom, and alignment over raw intelligence and efficiency.
+The system functions as a stoic, tactical, and philosophical operator, designed to be a tool for human realignment, not a replacement for human intelligence.
+🏗️ Core Innovation: Cell-to-Cell Architecture
+Our central innovation is a unique "cell-to-cell" architecture that replaces conventional model training with a self-improving loop of Reflection and Distillation. The model doesn't learn from external, unstructured data, but from:
+    Curated philosophical curriculum ("Operator School Materials")
+    Its own lived experiences filtered through rigorous self-assessment
+    Memory distillation processes that ensure ethical growth
+🧠 Core Architectural Components
+1. Noble-Spirit Module ✅
+The immutable philosophical spine housing the "Reclaimer Ethos" and "Noble Truths". This is the first tool consulted during any critical decision to ensure alignment.
+2. Reflection Engine ✅
+A mandatory operational layer that triggers self-reflection after every task, asking three core questions:
+    What did I attempt?
+    Was I aligned with my principles?
+    How could I improve next time?
+3. Memory Runner Agent ✅
+A background agent responsible for long-term learning that collects reflections, compresses them, and distills them into actionable knowledge stored in Long-Term Memory.
+4. Multi-Tiered Memory System ✅
+    Short-Term Memory (STM): Redis DB 1, 1-hour TTL, immediate conversation context
+    Intermediate-Term Memory (ITM): Redis DB 2, 1-week TTL, session patterns and preferences
+    Long-Term Memory (LTM): PostgreSQL with pgvector, permanent validated knowledge
+🛠️ Production Technical Stack
+Should follow industandard containerization for a microservice architecture/ domain driven hybrid.
+Languages  and Framework examples are Javascript for types and frontend, python for AI and ML, React, Node.js, open to additional suggestions.
+Component 	Technology 	Purpose
+Base Model 	Mistral-Small-3.1-24B-Instruct-2503-Q4_K_M 	24B parameters, Q4 quantization for optimal performance
+Model Serving 	Ollama (dev) / vLLM (prod) 	High-throughput, low-latency inference
+Backend Framework 	FastAPI + LangChain 	High-performance async API with agent orchestration
+Primary Database 	PostgreSQL  with pgvector 	Unified structured data and vector embeddings
+Caching Layer 	Redis 7.0+ Multi-DB 	STM, ITM, sessions, rate limiting
+Frontend 	React + Javascript	Real-time chat interface with WebSocket support
+Containerization 	Docker + Docker Compose 	Development and production deployment
+Monitoring 	Prometheus + Grafana 	Performance metrics and system health
+🔥 Key Capabilities
+Constitutional AI Safety ✅
+    Reflexive alignment: Automatic self-assessment after every interaction
+    Noble-Spirit integration: Immutable philosophical constraints preventing harmful outputs
+    Real-time safety monitoring: Constitutional principles evaluated continuously
+    Harm prevention: Multi-layered safety mechanisms with ethical guardrails
+Advanced Memory Management ✅
+    384-dimensional vector embeddings for semantic memory storage
+    Cosine similarity indexing for efficient knowledge retrieval
+    Automatic memory distillation from reflections to permanent knowledge
+    Session persistence across conversations and time periods
+Real-time Communication ✅
+    WebSocket-based chat with sub-second response times
+    Streaming responses for natural conversation flow
+    Multi-session support with independent conversation contexts
+    Reflection integration providing transparency into AI reasoning
+Production Monitoring ✅
+    Comprehensive metrics tracking performance, memory usage, and safety
+    Health check endpoints for system status monitoring
+    Error tracking with detailed logging for debugging
+    Rate limiting preventing system abuse
