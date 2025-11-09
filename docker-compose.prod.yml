@@ -1,0 +1,315 @@
+version: '3.8'
+
+# Production Docker Compose Configuration
+# This extends the base docker-compose.yml with production-specific settings
+
+services:
+  # Reverse proxy with SSL/TLS
+  nginx:
+    image: nginx:alpine
+    container_name: noble-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infrastructure/ssl/certs:/etc/nginx/ssl:ro
+      - ./infrastructure/ssl/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - gateway
+      - frontend
+    restart: unless-stopped
+    networks:
+      - noble-network
+
+  postgres:
+    # In production, use DigitalOcean Managed Database instead
+    # This is kept for local testing only
+    image: pgvector/pgvector:pg15
+    container_name: noble-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups/postgres:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - noble-network
+
+  redis:
+    # In production, use DigitalOcean Managed Redis instead
+    # This is kept for local testing only
+    image: redis:7-alpine
+    container_name: noble-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+      - ./backups/redis:/backups
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - noble-network
+
+  gateway:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-gateway:${IMAGE_TAG:-latest}
+    container_name: noble-gateway
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - AUTH_SERVICE_URL=http://auth-billing:3001
+      - INTELLIGENCE_SERVICE_URL=http://intelligence:8000
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - POLICY_SERVICE_URL=http://noble-spirit:4000
+      - NGS_SERVICE_URL=http://ngs-curriculum:9000
+      - MCP_SERVICE_URL=http://mcp-server:7000
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  auth-billing:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-auth-billing:${IMAGE_TAG:-latest}
+    container_name: noble-auth
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  intelligence:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-intelligence:${IMAGE_TAG:-latest}
+    container_name: noble-intelligence
+    environment:
+      - PORT=8000
+      - DATABASE_URL=${DATABASE_URL}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - LLM_MODEL=${LLM_MODEL}
+      - GPU_ENABLED=${GPU_ENABLED:-true}
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - CELERY_BROKER_URL=${REDIS_URL}/2
+      - ENABLE_REFLECTION=true
+    restart: unless-stopped
+    networks:
+      - noble-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  memory:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-memory:${IMAGE_TAG:-latest}
+    container_name: noble-memory
+    environment:
+      - PORT=8001
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  noble-spirit:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-noble-spirit:${IMAGE_TAG:-latest}
+    container_name: noble-policy
+    environment:
+      - PORT=4000
+      - DATABASE_URL=${DATABASE_URL}
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ngs-curriculum:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-ngs-curriculum:${IMAGE_TAG:-latest}
+    container_name: noble-ngs
+    environment:
+      - PORT=9000
+      - DATABASE_URL=${DATABASE_URL}
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  reflection-worker:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-reflection-worker:${IMAGE_TAG:-latest}
+    container_name: noble-reflection
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}/2
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - POLICY_SERVICE_URL=http://noble-spirit:4000
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  distillation-worker:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-distillation-worker:${IMAGE_TAG:-latest}
+    container_name: noble-distillation
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - POLICY_SERVICE_URL=http://noble-spirit:4000
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mcp-server:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-mcp-server:${IMAGE_TAG:-latest}
+    container_name: noble-mcp
+    environment:
+      - PORT=7000
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - INTELLIGENCE_SERVICE_URL=http://intelligence:8000
+      - JWT_SECRET=${JWT_SECRET}
+      - RUST_LOG=info
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-frontend:${IMAGE_TAG:-latest}
+    container_name: noble-frontend
+    environment:
+      - VITE_API_URL=https://api.novacore.ai
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Observability stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: noble-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: noble-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SERVER_ROOT_URL=https://metrics.novacore.ai
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backup service
+  backup:
+    image: alpine:latest
+    container_name: noble-backup
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    command: /bin/sh -c "crond -f"
+    restart: unless-stopped
+    networks:
+      - noble-network
+
+networks:
+  noble-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
