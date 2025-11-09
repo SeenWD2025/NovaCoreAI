@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 import uvicorn
 import logging
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
 from app.database import test_connection
@@ -66,6 +67,9 @@ app.add_middleware(
 
 # Include routers
 app.include_router(memory.router)
+
+# Add Prometheus metrics
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 @app.get("/")
