@@ -612,11 +612,12 @@ services:
 - XP event tracking
 - Achievement system
 - Agent unlock gating
+  **backend support for datacamp.com/corsera style learning portal  hybrid with VScode/replit style IDE and a Playground/sandbox** 
 
 ### Phase 10: Frontend
 - React/TypeScript/Vite setup
 - Chat interface
-- NGS portal
+- NGS portal (datacamp.com/corsera style learning portal  hybrid with VScode/replit style IDE and a Playground/sandbox)
 - Memory visualization
 - Subscription management
 
