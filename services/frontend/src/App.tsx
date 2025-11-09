@@ -19,6 +19,7 @@ import Leaderboard from './pages/Leaderboard';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import MemoryViz from './pages/MemoryViz';
+import Usage from './pages/Usage';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -62,6 +63,7 @@ function App() {
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/memory" element={<MemoryViz />} />
+          <Route path="/usage" element={<Usage />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
 
