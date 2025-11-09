@@ -27,6 +27,7 @@ ENV/
 *.test
 *.out
 go.work
+vendor/
 
 # Rust
 target/

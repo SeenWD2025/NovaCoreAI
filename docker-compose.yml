@@ -125,7 +125,7 @@ services:
     container_name: noble-ngs
     environment:
       - PORT=9000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
     ports:
       - "9000:9000"
     depends_on:
