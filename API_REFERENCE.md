@@ -535,6 +535,430 @@ Get list of constitutional principles used for validation.
 
 ---
 
+## NGS Curriculum Endpoints
+
+### Get User Progress
+
+**GET** `/ngs/progress`
+
+Get current user's curriculum progress with level information.
+
+**Headers:** `Authorization: Bearer token`
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "current_level": 3,
+  "total_xp": 275,
+  "agent_creation_unlocked": false,
+  "current_level_info": {
+    "level_number": 3,
+    "title": "Reflector",
+    "description": "Mirror mechanics — AI as reflection of Operator intent.",
+    "xp_required": 250
+  },
+  "next_level_info": {
+    "level_number": 4,
+    "title": "Calibrator",
+    "xp_required": 450
+  },
+  "xp_to_next_level": 175,
+  "progress_percent": 12.5
+}
+```
+
+### Get All Curriculum Levels
+
+**GET** `/ngs/levels`
+
+Get all 24 curriculum levels.
+
+**Response:** `200 OK`
+```json
+{
+  "levels": [
+    {
+      "id": 1,
+      "level_number": 1,
+      "title": "Awakeners",
+      "description": "Awakening to signal and self...",
+      "xp_required": 0
+    }
+  ],
+  "count": 24
+}
+```
+
+### Get Specific Level
+
+**GET** `/ngs/levels/:level`
+
+Get details for a specific curriculum level.
+
+**Response:** `200 OK`
+
+### Get Lessons for Level
+
+**GET** `/ngs/levels/:level/lessons`
+
+Get all lessons for a specific curriculum level, including completion status.
+
+**Headers:** `Authorization: Bearer token`
+
+**Response:** `200 OK`
+```json
+{
+  "level": 1,
+  "lessons": [
+    {
+      "id": "uuid",
+      "level_id": 1,
+      "title": "Awakening to Signal and Self",
+      "description": "Understanding awareness, signal differentiation...",
+      "lesson_order": 1,
+      "lesson_type": "tutorial",
+      "core_lesson": "Awareness of signal & self; understanding Noble Core Principles",
+      "human_practice": "Observe your thoughts for one full day without reacting...",
+      "reflection_prompt": "What signals are truly yours, and which are echoes?",
+      "agent_unlock": "Enable basic memory recall + reflection logging",
+      "xp_reward": 50,
+      "estimated_minutes": 45,
+      "is_required": true,
+      "completed": false
+    }
+  ],
+  "count": 1
+}
+```
+
+### Get Lesson Details
+
+**GET** `/ngs/lessons/:id`
+
+Get detailed information about a specific lesson.
+
+**Headers:** `Authorization: Bearer token`
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "level_id": 1,
+  "title": "Awakening to Signal and Self",
+  "content_markdown": "# Lesson Content\n\n...",
+  "core_lesson": "Awareness of signal & self...",
+  "human_practice": "Observe your thoughts...",
+  "reflection_prompt": "What signals are truly yours?",
+  "agent_unlock": "Enable basic memory recall",
+  "xp_reward": 50,
+  "estimated_minutes": 45,
+  "completed": false,
+  "completed_at": null
+}
+```
+
+### Complete Lesson
+
+**POST** `/ngs/lessons/:id/complete`
+
+Mark a lesson as completed and submit reflection.
+
+**Headers:** `Authorization: Bearer token`
+
+**Request Body:**
+```json
+{
+  "score": 85,
+  "time_spent_seconds": 2700,
+  "reflection_text": "I realized that many of my thoughts...",
+  "metadata": {
+    "questions_answered": 5
+  }
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "completion": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "lesson_id": "uuid",
+    "score": 85,
+    "time_spent_seconds": 2700,
+    "reflection_text": "I realized...",
+    "completed_at": "2024-01-01T00:00:00Z"
+  },
+  "message": "Lesson completed successfully"
+}
+```
+
+### Get User Reflections
+
+**GET** `/ngs/reflections?limit=20`
+
+Get user's reflection history.
+
+**Headers:** `Authorization: Bearer token`
+
+**Query Parameters:**
+- `limit` (optional, default: 20, max: 100): Number of reflections to return
+
+**Response:** `200 OK`
+```json
+{
+  "reflections": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "lesson_id": "uuid",
+      "level_number": 1,
+      "reflection_prompt": "What signals are truly yours?",
+      "reflection_text": "After observing my thoughts...",
+      "quality_score": 0.85,
+      "xp_awarded": 25,
+      "is_public": false,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+### Submit Reflection
+
+**POST** `/ngs/reflections`
+
+Submit a practice reflection and earn XP based on quality.
+
+**Headers:** `Authorization: Bearer token`
+
+**Request Body:**
+```json
+{
+  "lesson_id": "uuid",
+  "level_number": 1,
+  "reflection_prompt": "What signals are truly yours?",
+  "reflection_text": "After observing my thoughts today, I noticed...",
+  "is_public": false
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "reflection": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "reflection_prompt": "What signals are truly yours?",
+    "reflection_text": "After observing...",
+    "quality_score": 0.85,
+    "xp_awarded": 25,
+    "is_public": false,
+    "created_at": "2024-01-01T00:00:00Z"
+  },
+  "message": "Reflection submitted successfully"
+}
+```
+
+### Award XP
+
+**POST** `/ngs/award-xp`
+
+Award XP to user for various actions.
+
+**Headers:** `Authorization: Bearer token`
+
+**Request Body:**
+```json
+{
+  "source": "creative_solution",
+  "amount": 75,
+  "metadata": {
+    "task_id": "uuid"
+  }
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "progress": {
+    "current_level": 3,
+    "total_xp": 350,
+    "xp_awarded": 75
+  }
+}
+```
+
+### Get Achievements
+
+**GET** `/ngs/achievements`
+
+Get all achievements unlocked by the user.
+
+**Headers:** `Authorization: Bearer token`
+
+**Response:** `200 OK`
+```json
+{
+  "achievements": [
+    {
+      "id": "uuid",
+      "achievement_type": "level_up",
+      "achievement_data": {
+        "from_level": 2,
+        "to_level": 3
+      },
+      "unlocked_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+### Get Leaderboard
+
+**GET** `/ngs/leaderboard?limit=10`
+
+Get top users by total XP.
+
+**Query Parameters:**
+- `limit` (optional, default: 10): Number of top users to return
+
+**Response:** `200 OK`
+```json
+{
+  "leaderboard": [
+    {
+      "user_id": "uuid",
+      "current_level": 12,
+      "total_xp": 5234,
+      "rank": 1
+    }
+  ],
+  "count": 1
+}
+```
+
+### Get Challenges by Level
+
+**GET** `/ngs/levels/:level/challenges`
+
+Get all active challenges for a specific level.
+
+**Response:** `200 OK`
+```json
+{
+  "level": 1,
+  "challenges": [
+    {
+      "id": "uuid",
+      "level_id": 1,
+      "title": "Signal Detection Practice",
+      "description": "Write code to filter signals from noise",
+      "challenge_type": "coding",
+      "difficulty": "medium",
+      "starter_code": "function filterSignals(data) {\n  // Your code here\n}",
+      "xp_reward": 100,
+      "time_limit_minutes": 30,
+      "is_active": true
+    }
+  ],
+  "count": 1
+}
+```
+
+### Get Challenge Details
+
+**GET** `/ngs/challenges/:id`
+
+Get detailed information about a specific challenge.
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "level_id": 1,
+  "title": "Signal Detection Practice",
+  "description": "Write a function to filter signals from noise...",
+  "challenge_type": "coding",
+  "difficulty": "medium",
+  "starter_code": "function filterSignals(data) {...}",
+  "test_cases": [...],
+  "solution_template": "...",
+  "xp_reward": 100,
+  "time_limit_minutes": 30
+}
+```
+
+### Submit Challenge Solution
+
+**POST** `/ngs/challenges/:id/submit`
+
+Submit a solution for a coding challenge.
+
+**Headers:** `Authorization: Bearer token`
+
+**Request Body:**
+```json
+{
+  "submission_code": "function filterSignals(data) { return data.filter(x => x.signal); }"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "submission": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "challenge_id": "uuid",
+    "passed": true,
+    "score": 100,
+    "feedback": "Excellent work! Your solution passed all test cases.",
+    "test_results": {
+      "total_tests": 5,
+      "passed_tests": 5,
+      "failed_tests": 0
+    },
+    "submitted_at": "2024-01-01T00:00:00Z"
+  },
+  "message": "Challenge submission processed"
+}
+```
+
+### Get User Challenge Submissions
+
+**GET** `/ngs/challenges/submissions?limit=20`
+
+Get user's challenge submission history.
+
+**Headers:** `Authorization: Bearer token`
+
+**Query Parameters:**
+- `limit` (optional, default: 20, max: 100)
+
+**Response:** `200 OK`
+```json
+{
+  "submissions": [
+    {
+      "id": "uuid",
+      "challenge_id": "uuid",
+      "passed": true,
+      "score": 95,
+      "submitted_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
 ## Billing Endpoints
 
 ### Create Checkout Session

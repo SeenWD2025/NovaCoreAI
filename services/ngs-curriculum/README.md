@@ -54,6 +54,15 @@
 - `GET /ngs/levels` - Get all 24 curriculum levels
 - `GET /ngs/levels/:level` - Get specific level details
 
+### Lessons (NEW)
+- `GET /ngs/levels/:level/lessons` - Get all lessons for a level
+- `GET /ngs/lessons/:id` - Get specific lesson content
+- `POST /ngs/lessons/:id/complete` - Complete a lesson with reflection
+
+### Reflections (NEW)
+- `GET /ngs/reflections?limit=20` - Get user reflection history
+- `POST /ngs/reflections` - Submit a practice reflection
+
 ### Health
 - `GET /health` - Health check
 - `GET /` - Service information
@@ -101,7 +110,7 @@ curl -X POST http://localhost:9000/ngs/award-xp \
   }'
 ```
 
-### Complete Lesson
+### Complete Lesson (Legacy endpoint - still supported)
 ```bash
 curl -X POST http://localhost:9000/ngs/complete-lesson \
   -H "Content-Type: application/json" \
@@ -113,6 +122,71 @@ curl -X POST http://localhost:9000/ngs/complete-lesson \
       "time_spent": 1200
     }
   }'
+```
+
+### Get Lessons for a Level
+```bash
+curl -H "X-User-Id: <uuid>" http://localhost:9000/ngs/levels/1/lessons
+```
+
+Response:
+```json
+{
+  "level": 1,
+  "lessons": [
+    {
+      "id": "...",
+      "level_id": 1,
+      "title": "Awakening to Signal and Self",
+      "core_lesson": "Awareness of signal & self; understanding Noble Core Principles",
+      "human_practice": "Observe your thoughts for one full day without reacting...",
+      "reflection_prompt": "What signals are truly yours, and which are echoes?",
+      "agent_unlock": "Enable basic memory recall + reflection logging",
+      "xp_reward": 50,
+      "estimated_minutes": 45,
+      "completed": false
+    }
+  ],
+  "count": 1
+}
+```
+
+### Get Specific Lesson
+```bash
+curl -H "X-User-Id: <uuid>" http://localhost:9000/ngs/lessons/<lesson-id>
+```
+
+### Complete a Lesson with Reflection
+```bash
+curl -X POST http://localhost:9000/ngs/lessons/<lesson-id>/complete \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: <uuid>" \
+  -d '{
+    "score": 85,
+    "time_spent_seconds": 2700,
+    "reflection_text": "I realized that many of my thoughts are reactions rather than genuine signals...",
+    "metadata": {
+      "questions_answered": 5
+    }
+  }'
+```
+
+### Submit a Reflection
+```bash
+curl -X POST http://localhost:9000/ngs/reflections \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: <uuid>" \
+  -d '{
+    "lesson_id": "<lesson-uuid>",
+    "reflection_prompt": "What signals are truly yours?",
+    "reflection_text": "After observing my thoughts today, I noticed...",
+    "is_public": false
+  }'
+```
+
+### Get User Reflections
+```bash
+curl -H "X-User-Id: <uuid>" http://localhost:9000/ngs/reflections?limit=10
 ```
 
 ## Setup Instructions
