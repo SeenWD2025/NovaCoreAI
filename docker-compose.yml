@@ -90,6 +90,9 @@ services:
       - FREE_TIER_TOKENS_DAY=${FREE_TIER_TOKENS_DAY:-1000}
       - BASIC_TIER_TOKENS_DAY=${BASIC_TIER_TOKENS_DAY:-50000}
       - PRO_TIER_TOKENS_DAY=${PRO_TIER_TOKENS_DAY:--1}
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - CELERY_BROKER_URL=redis://redis:6379/2
+      - ENABLE_REFLECTION=${ENABLE_REFLECTION:-true}
     ports:
       - "8000:8000"
     depends_on:
@@ -97,6 +100,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      memory:
+        condition: service_started
   
   memory:
     build:
@@ -142,7 +147,52 @@ services:
       - ./services/frontend:/app
       - /app/node_modules
   
-  # Elixir (noble-spirit) and Rust (mcp-server) stubs to be added in Phases 6 & 11
+  noble-spirit:
+    build:
+      context: ./services/noble-spirit
+    container_name: noble-policy
+    environment:
+      - PORT=4000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  
+  reflection-worker:
+    build:
+      context: ./services/reflection-worker
+    container_name: noble-reflection
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CELERY_BROKER_URL=redis://redis:6379/2
+      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - POLICY_SERVICE_URL=http://noble-spirit:4000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+    depends_on:
+      redis:
+        condition: service_healthy
+      memory:
+        condition: service_started
+      noble-spirit:
+        condition: service_started
+  
+  distillation-worker:
+    build:
+      context: ./services/distillation-worker
+    container_name: noble-distillation
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - POLICY_SERVICE_URL=http://noble-spirit:4000
+      - LTM_PROMOTION_THRESHOLD=${LTM_PROMOTION_THRESHOLD:-3}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  
+  # Rust (mcp-server) stub to be added in Phase 11
 
 volumes:
   postgres_data:
