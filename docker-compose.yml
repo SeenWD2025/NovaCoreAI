@@ -142,7 +142,20 @@ services:
       - ./services/frontend:/app
       - /app/node_modules
   
-  # Elixir (noble-spirit) and Rust (mcp-server) stubs to be added in Phases 6 & 11
+  noble-spirit:
+    build:
+      context: ./services/noble-spirit
+    container_name: noble-policy
+    environment:
+      - PORT=4000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  
+  # Rust (mcp-server) stub to be added in Phase 11
 
 volumes:
   postgres_data:
