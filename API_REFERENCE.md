@@ -843,6 +843,120 @@ Get top users by total XP.
 }
 ```
 
+### Get Challenges by Level
+
+**GET** `/ngs/levels/:level/challenges`
+
+Get all active challenges for a specific level.
+
+**Response:** `200 OK`
+```json
+{
+  "level": 1,
+  "challenges": [
+    {
+      "id": "uuid",
+      "level_id": 1,
+      "title": "Signal Detection Practice",
+      "description": "Write code to filter signals from noise",
+      "challenge_type": "coding",
+      "difficulty": "medium",
+      "starter_code": "function filterSignals(data) {\n  // Your code here\n}",
+      "xp_reward": 100,
+      "time_limit_minutes": 30,
+      "is_active": true
+    }
+  ],
+  "count": 1
+}
+```
+
+### Get Challenge Details
+
+**GET** `/ngs/challenges/:id`
+
+Get detailed information about a specific challenge.
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "level_id": 1,
+  "title": "Signal Detection Practice",
+  "description": "Write a function to filter signals from noise...",
+  "challenge_type": "coding",
+  "difficulty": "medium",
+  "starter_code": "function filterSignals(data) {...}",
+  "test_cases": [...],
+  "solution_template": "...",
+  "xp_reward": 100,
+  "time_limit_minutes": 30
+}
+```
+
+### Submit Challenge Solution
+
+**POST** `/ngs/challenges/:id/submit`
+
+Submit a solution for a coding challenge.
+
+**Headers:** `Authorization: Bearer token`
+
+**Request Body:**
+```json
+{
+  "submission_code": "function filterSignals(data) { return data.filter(x => x.signal); }"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "submission": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "challenge_id": "uuid",
+    "passed": true,
+    "score": 100,
+    "feedback": "Excellent work! Your solution passed all test cases.",
+    "test_results": {
+      "total_tests": 5,
+      "passed_tests": 5,
+      "failed_tests": 0
+    },
+    "submitted_at": "2024-01-01T00:00:00Z"
+  },
+  "message": "Challenge submission processed"
+}
+```
+
+### Get User Challenge Submissions
+
+**GET** `/ngs/challenges/submissions?limit=20`
+
+Get user's challenge submission history.
+
+**Headers:** `Authorization: Bearer token`
+
+**Query Parameters:**
+- `limit` (optional, default: 20, max: 100)
+
+**Response:** `200 OK`
+```json
+{
+  "submissions": [
+    {
+      "id": "uuid",
+      "challenge_id": "uuid",
+      "passed": true,
+      "score": 95,
+      "submitted_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
 ---
 
 ## Billing Endpoints
