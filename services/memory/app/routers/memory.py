@@ -15,11 +15,15 @@ from app.models.schemas import (
     SearchResultsResponse,
     MemoryStatsResponse,
     MemoryTier,
-    STMInteraction
+    STMInteraction,
+    UsageStatsResponse,
+    QuotaCheckResponse
 )
 from app.services.memory_service import memory_service
+from app.services.usage_service import usage_service
 from app.redis_client import redis_client
 from app.config import settings
+from app.utils.storage_calculator import storage_calculator
 import logging
 
 logger = logging.getLogger(__name__)
@@ -40,15 +44,39 @@ def get_user_id(x_user_id: Optional[str] = Header(None)) -> str:
 async def store_memory(
     request: StoreMemoryRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_user_tier: Optional[str] = Header("free_trial")
 ):
     """
     Store a new memory.
     
     Creates a memory in the specified tier (STM, ITM, or LTM).
     Generates vector embeddings for semantic search.
+    Enforces storage quotas based on subscription tier.
     """
     try:
+        # Calculate storage size for this memory
+        storage_size = storage_calculator.calculate_memory_size(
+            input_context=request.input_context,
+            output_response=request.output_response,
+            tags=request.tags,
+            metadata=None,
+            embedding_dimension=384
+        )
+        
+        # Check storage quota (skip for STM as it expires quickly)
+        if request.tier in [MemoryTier.ITM, MemoryTier.LTM]:
+            has_quota, quota_msg = usage_service.check_storage_quota(
+                db, user_id, storage_size, x_user_tier
+            )
+            
+            if not has_quota:
+                logger.warning(f"Storage quota exceeded for user {user_id}: {quota_msg}")
+                raise HTTPException(status_code=429, detail=quota_msg)
+            
+            if "Warning" in quota_msg:
+                logger.info(f"Storage quota warning for user {user_id}: {quota_msg}")
+        
         memory = memory_service.store_memory(db, user_id, request)
         
         if not memory:
@@ -462,6 +490,94 @@ async def get_context(
                 })
         
         return context
+    
+    except Exception as e:
+        logger.error(f"Error getting context: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# Usage Tracking Endpoints
+
+@router.get("/usage", response_model=UsageStatsResponse)
+async def get_usage_stats(
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed usage statistics for the current user.
+    
+    Includes storage usage, memory counts by tier, and tier-specific stats.
+    """
+    try:
+        # Get storage usage from ledger
+        storage_usage = usage_service.get_user_storage_usage(db, user_id)
+        
+        # Get tier-specific statistics
+        tier_stats = usage_service.get_storage_stats_by_tier(db, user_id)
+        
+        return UsageStatsResponse(
+            user_id=user_id,
+            storage={
+                "total_bytes": storage_usage["total_bytes"],
+                "total_human_readable": storage_usage["total_human_readable"]
+            },
+            memory_counts=storage_usage["memory_count"],
+            tier_stats=tier_stats,
+            timestamp=storage_usage["timestamp"]
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting usage stats: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/usage/quota-check", response_model=QuotaCheckResponse)
+async def check_storage_quota(
+    user_id: str = Depends(get_user_id),
+    db: Session = Depends(get_db),
+    x_user_tier: Optional[str] = Header("free_trial")
+):
+    """
+    Check current storage quota status.
+    
+    Returns quota availability and usage percentage.
+    """
+    try:
+        # Get current usage
+        storage_usage = usage_service.get_user_storage_usage(db, user_id)
+        current_bytes = storage_usage["total_bytes"]
+        
+        # Get tier limit
+        limit_bytes = storage_calculator.get_tier_storage_limit(x_user_tier)
+        
+        # Calculate percentage
+        if limit_bytes == -1:
+            percentage = 0.0
+            limit_str = "Unlimited"
+        else:
+            percentage = (current_bytes / limit_bytes) * 100 if limit_bytes > 0 else 0
+            limit_str = storage_calculator.bytes_to_human_readable(limit_bytes)
+        
+        has_quota = limit_bytes == -1 or current_bytes < limit_bytes
+        
+        if not has_quota:
+            message = "Storage quota exceeded. Please upgrade your plan."
+        elif percentage >= 80:
+            message = f"Warning: {percentage:.1f}% of storage quota used"
+        else:
+            message = "Storage quota available"
+        
+        return QuotaCheckResponse(
+            has_quota=has_quota,
+            message=message,
+            current_usage=storage_calculator.bytes_to_human_readable(current_bytes),
+            limit=limit_str,
+            percentage_used=round(percentage, 2)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error checking quota: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
         
     except Exception as e:
         logger.error(f"Error retrieving context: {e}")

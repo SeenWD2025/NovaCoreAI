@@ -155,3 +155,21 @@ class ITMReference(BaseModel):
     access_count: int
     type: str
     summary: Optional[str] = None
+
+
+class UsageStatsResponse(BaseModel):
+    """Detailed usage statistics response."""
+    user_id: str
+    storage: Dict[str, Any]
+    memory_counts: Dict[str, int]
+    tier_stats: Dict[str, Any]
+    timestamp: str
+
+
+class QuotaCheckResponse(BaseModel):
+    """Quota check response."""
+    has_quota: bool
+    message: str
+    current_usage: str
+    limit: str
+    percentage_used: float
