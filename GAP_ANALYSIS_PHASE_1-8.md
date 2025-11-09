@@ -1,140 +1,185 @@
-# Noble NovaCoreAI - Forensic Gap Analysis (Phases 1-8)
+# Noble NovaCoreAI · Forensic Gap Review (Phases 1-8)
 
-**Analysis Date:** November 9, 2025  
-**Scope:** Phases 1-8 Development Status Review  
-**Status:** ⚠️ CRITICAL GAPS IDENTIFIED  
-**Next Review:** After implementing priority recommendations
-
----
-
-## Executive Summary
-
-Your Noble NovaCoreAI project has **foundational architecture in place** but **critical implementation gaps exist** across all phases. The completion documentation claims progress beyond what is currently implemented in the codebase.
-
-### Key Findings
-
-**✅ Complete (Production-Ready):**
-- Phase 1: Foundation (Docker Compose, PostgreSQL schema, Redis setup)
-- Phase 2: Auth & Billing (NestJS service with JWT, bcrypt, basic Stripe)
-- Phase 3: API Gateway (TypeScript Express with WebSocket, rate limiting)
-
-**⚠️ Partial/In-Progress (Needs Work):**
-- Phase 4: Intelligence Core (FastAPI structure exists, but limited implementation)
-- Phase 5: Cognitive Memory (FastAPI structure exists, but incomplete routing/services)
-- Phase 6: Noble-Spirit Policy (FastAPI stub, minimal implementation)
-- Phase 7: Reflection Worker (Celery structure exists, no actual task implementation)
-- Phase 8: Distillation Worker (Scheduler structure exists, no job implementation)
-
-**❌ Not Implemented (Stubs Only):**
-- Phase 9: NGS Curriculum (Go stub with health check only)
-- Phase 10: Frontend (Express stub with HTML placeholder)
-- Phase 11: MCP Server (README only, no code)
+**Analysis Date:** 2025-11-09  
+**Auditor:** GitHub Copilot (forensic pass #2)  
+**Confidence:** High – source code inspected service-by-service
 
 ---
 
-## Detailed Service Analysis
+## Executive View
 
-### Phase 1: Foundation ✅ COMPLETE
+- ✅ Foundations (Phases 1-3) are production-quality and match completion notes.
+- ✅ Intelligence, Memory, Policy, Reflection, and Distillation services (Phases 4-8) are substantially implemented—earlier “missing” flags were incorrect.
+- ⚠️ Critical follow-ups remain around **governance (tier enforcement, auth gating)**, **observability**, and **resilience testing**.
+- 🧪 Zero automated tests exist; integration paths are unverified outside manual reasoning.
+- 🛡️ Security posture (service-to-service auth, secret rotation, rate enforcement) needs deliberate hardening before launch.
 
-**Status:** Production-Ready  
-**Verification:** All components verified
-
-#### What's Working
-- ✅ Docker Compose orchestration with all services defined
-- ✅ PostgreSQL 15 with pgvector extension enabled
-- ✅ Redis 7 Alpine with volume persistence
-- ✅ Complete database schema (01_init.sql) with:
-  - Users, subscriptions, usage_ledger
-  - Sessions, prompts (Intelligence Core)
-  - Memories, reflections, distilled_knowledge (Cognitive Memory)
-  - User_progress, xp_events, achievements (NGS)
-  - Policies, policy_audit_log (Noble-Spirit)
-- ✅ Environment configuration template (.env.example)
-- ✅ Shared volumes and networking properly configured
-
-#### No Issues
-- Database initialization works
-- Service dependencies properly defined
-- All ports correctly exposed
+**Bottom line:** The architecture is real and wired end-to-end. Focus now on tightening guarantees, validating behavior, and preparing for production operations.
 
 ---
 
-### Phase 2: Auth & Billing ✅ COMPLETE
+## Phase Status Snapshot
 
-**Status:** Production-Ready  
-**Technology:** NestJS 10 + TypeScript
+| Phase | Scope | Status | Notes |
+| --- | --- | --- | --- |
+| 1 | Platform foundation | ✅ Complete | Compose stack, Postgres + pgvector, Redis, schema seeds verified |
+| 2 | Auth & billing | ✅ Complete (MVP) | JWT, refresh, RBAC, Stripe scaffolding; billing follow-ups listed below |
+| 3 | API gateway | ✅ Complete | JWT verification, proxying, WS, rate limits, structured logging |
+| 4 | Intelligence core | ✅ Implemented | Memory context, STM writes, reflection triggers all active |
+| 5 | Cognitive memory | ✅ Implemented | Full CRUD, pgvector search, tier promotion, Redis STM/ITM |
+| 6 | Noble-Spirit policy | ✅ Implemented | Alignment scoring, principle checks, signatures, audit logging |
+| 7 | Reflection worker | ✅ Implemented | Celery tasks call Policy + Memory services, retries, batch mode |
+| 8 | Distillation worker | ✅ Implemented | Nightly scheduler, promotion, distilled knowledge, cleanup |
 
-#### What's Working
-- ✅ User registration with bcrypt password hashing
-- ✅ Login with email/password validation
-- ✅ JWT token generation (15-min access, 7-day refresh)
-- ✅ Token refresh mechanism
-- ✅ Role-based access control (student, subscriber, admin)
-- ✅ 7-day free trial assignment on registration
-- ✅ RBAC decorators (@Roles, RolesGuard)
-- ✅ Database integration with connection pooling
-- ✅ Stripe SDK integration (placeholder for actual integration)
-- ✅ Parameterized SQL queries (SQL injection protection)
-
-#### Verified Endpoints
-- `POST /auth/register` ✅
-- `POST /auth/login` ✅
-- `POST /auth/refresh` ✅
-- `GET /auth/me` ✅ (Protected)
-- `POST /billing/create-checkout` (Stripe placeholder)
-- `POST /billing/webhooks` (Stripe placeholder)
-- `GET /billing/portal` (Stub)
-- `GET /billing/usage` (Stub)
-- `GET /health` ✅
-
-#### Minor Gaps
-- ⚠️ Stripe webhook handler not fully implemented (events structure only)
-- ⚠️ Billing portal URL generation not connected to real Stripe
-- ⚠️ Usage tracking API returns mock data only
-- ⚠️ No actual subscription tier enforcement in the service
-- ⚠️ No email verification workflow
-
-**Recommendation:** These are acceptable for MVP; implement post-launch.
+Status legend: ✅ implemented; ⚠️ needs follow-up; 🚨 blocker.
 
 ---
 
-### Phase 3: API Gateway ✅ COMPLETE
+## Detailed Findings by Phase
 
-**Status:** Production-Ready  
-**Technology:** Node.js + TypeScript + Express
+### Phase 1 · Foundation – ✅ Stable
+- Docker Compose orchestrates every service with consistent networking and volumes.
+- `shared/schemas/01_init.sql` provisions all required tables (memories, reflections, distilled_knowledge, usage ledgers, policy logs, curriculum progress, etc.).
+- Redis 7 Alpine + pgvector extension confirmed; environment templates cover necessary variables.
+- No corrective action required beyond keeping schema migrations in sync with future changes.
 
-#### What's Working
-- ✅ TypeScript compilation and build pipeline
-- ✅ Express middleware chain properly ordered
-- ✅ CORS configuration for all origins
-- ✅ JWT validation middleware (validateToken)
-- ✅ Optional auth middleware (doesn't fail if no token)
-- ✅ HTTP proxy middleware to all services:
-  - `/api/auth/*` → auth-billing:3001
-  - `/api/billing/*` → auth-billing:3001
-  - `/api/chat/*` → intelligence:8000
-  - `/api/memory/*` → memory:8001
-  - `/api/ngs/*` → ngs-curriculum:9000
-- ✅ WebSocket support on `/ws/chat` with JWT auth
-- ✅ Rate limiting (100 req/15min per IP)
-- ✅ User context headers (X-User-Id, X-User-Email, X-User-Role)
-- ✅ Health check endpoints
-- ✅ Error handling middleware
-- ✅ Request/response logging
+### Phase 2 · Auth & Billing – ✅ (MVP) with ⚠️ follow-ups
+- NestJS service handles register/login/refresh, password hashing, JWT signing, and role guards.
+- Usage ledger queries exist (`SessionService.get_user_token_usage_today`) but downstream consumers must record usage (see Phase 4).
+- Stripe integration hooks are placeholders (webhook + checkout skeleton).
 
-#### Verified Features
-- Headers properly forwarded to downstream services
-- WebSocket upgrades with token validation
-- Rate limit errors return 429
-- Invalid tokens return 403
-- Missing auth on protected routes returns 401
+**Recommended next steps**
+- Implement Stripe webhook signature verification and portal URL resolution.
+- Persist token usage to `usage_ledger` per interaction (tie-in with Intelligence service).
+- Add email verification and failed-login throttling prior to launch.
 
-#### No Major Issues
-All documented Phase 3 requirements are implemented and working.
+### Phase 3 · Gateway – ✅ Ship-ready
+- Express + TypeScript gateway validates JWTs, decorates proxy calls with user headers, supports WebSocket upgrades, and enforces IP rate limits.
+- Structured logging and centralized error handling already present.
+- Follow-up: respond with consistent JSON error shape to ease client handling.
+
+### Phase 4 · Intelligence Core – ✅ Working path, ⚠️ instrumentation gaps
+- `chat.py` integrates Memory context (STM/ITM/LTM fetch), constructs augmented prompts, performs tier checks, stores prompts, pushes STM, and triggers reflections.
+- Streaming endpoint handles SSE, includes fallback if Memory service unavailable, and ensures session ownership.
+- Rate limiting currently assumes `free_trial` tier; needs actual tier lookup from Auth service and persistence into `usage_ledger`.
+- Observability: no structured tracing for Ollama latency or failure causes.
+
+**Action Items**
+1. Fetch subscription tier via Auth/Billing and persist usage records for accurate quotas.
+2. Harden streaming error handling (retry/abort semantics when Ollama disconnects mid-stream).
+3. Add payload validation (message length, null prompts) to guard resource abuse.
+
+### Phase 5 · Cognitive Memory – ✅ Feature-complete, ⚠️ quota enforcement
+- Router implements full suite: store/retrieve/list/search/update/delete/promote/stats plus STM & ITM endpoints.
+- `memory_service.py` orchestrates pgvector search, tier promotions, confidence/emotional scoring, and soft deletes.
+- Redis client manages STM (1h TTL) and ITM sorted sets; embedding service generates vectors via sentence transformers.
+- Constitution checks & audit flags honored when promoting memories.
+
+**Focus areas**
+- Enforce per-tier storage quotas using Auth/Billing subscription limits.
+- Add background reconciliation to purge orphaned Redis references if Postgres entries expire.
+- Extend semantic search to include distilled knowledge results when relevant.
+
+### Phase 6 · Noble-Spirit Policy – ✅ Operational, ⚠️ authentication gate
+- Policy router validates content, alignment, and manages policy versions. Alignment scoring returns principle-specific breakdowns and recommendations.
+- Policies are SHA-256 signed with audit logging; immutable version storage honored.
+- Missing cross-service auth: endpoints trust `X-User-Id` without verifying downstream service identity.
+
+**Hardening list**
+- Require service-to-service token (mTLS or shared service JWT) for policy validations.
+- Cache principle definitions locally to survive Noble-Spirit downtime.
+- Add rate limiting on validation endpoint to prevent abuse from compromised services.
+
+### Phase 7 · Reflection Worker – ✅ Integrated, ⚠️ resilience
+- Celery tasks validate alignment, craft self-assessment (3 canonical questions), store reflections in Memory (LTM), and expose health checks.
+- Retries with exponential backoff implemented; batch queueing supported.
+- Current failure mode: if Policy or Memory service is unreachable, task logs error but doesn’t raise alert beyond Celery logging.
+
+**Next steps**
+- Emit structured metrics (success rate, retry count) to shared observability stack.
+- Add dead-letter queue or alerting on repeated failures.
+- Consider circuit breaker to avoid hammering Policy service during outages.
+
+### Phase 8 · Distillation Worker – ✅ Functional, ⚠️ scheduling hygiene
+- Scheduler launches daily job (configurable hour), immediately runs a bootstrap distillation, and loops with `schedule.run_pending()`.
+- Distiller groups reflections by topic, averages scores, creates distilled knowledge, promotes ITM → LTM, and purges expired STM/ITM.
+- Lacks external health signal—if scheduler crashes, no watchdog restarts the job.
+
+**Improvements**
+- Run scheduler under process supervisor or container health check.
+- Publish run metrics (counts, errors) to central logging/metrics for visibility.
+- Guard against duplicate distilled knowledge via idempotency checks on source reflection sets.
 
 ---
 
-### Phase 4: Intelligence Core ⚠️ PARTIAL
+## Cross-Cutting Observations
+
+**Governance & Security**
+- Service-to-service authentication currently relies on implicit network trust. Introduce signed service tokens or mutual TLS between API Gateway ↔ downstream services.
+- No audit trail ties user actions across services. Ensure request IDs/session IDs propagate for forensic traceability.
+
+**Observability**
+- Logging exists but is inconsistent in structure. Adopt JSON logging and include `user_id`, `session_id`, and `request_id` columns.
+- No metrics/exporters. Add Prometheus/OpenTelemetry instrumentation for throughput, latency, error rates.
+
+**Testing & QA**
+- No automated tests (unit, integration, contract). This is the most significant remaining risk.
+- Recommend contract tests for inter-service APIs (e.g., Intelligence ↔ Memory, Reflection ↔ Policy) plus load tests covering concurrent chat sessions.
+
+**Configuration Management**
+- Secrets currently expected via environment variables; document rotation procedures and consider HashiCorp Vault or AWS Secrets Manager for production.
+- Ensure embedding model weights and Ollama models are version-pinned to avoid drift.
+
+---
+
+## Priority Action Plan (Next 2 Sprints)
+
+1. **Testing Blitz (Highest ROI)**
+  - Establish pytest suites for FastAPI services and Celery tasks; add supertest/jest coverage for Node services.
+  - Create integration harness (docker-compose override) to exercise full chat → reflection → distillation loop.
+
+2. **Subscription Enforcement & Usage Ledger**
+  - Have Intelligence service pull user tier info and record tokens/messages per interaction.
+  - Expose billing usage endpoints that reflect real data.
+
+3. **Zero-Trust Service Mesh**
+  - Issue service credentials (JWT signed by Auth service or static tokens) and validate on every cross-service call.
+  - Update gateway to attach signed service assertions; enforce checks in Memory, Policy, Reflection, Distillation.
+
+4. **Operational Readiness**
+  - Adopt central logging + metrics (e.g., Grafana stack) and set SLO baselines.
+  - Add health probes for Celery workers and distillation scheduler; integrate with docker-compose healthcheck.
+
+5. **Stripe & Billing Completion**
+  - Implement webhook validation, product/price config, and portal deep links.
+  - Add downgrade/upgrade handling and trial-to-paid automation.
+
+---
+
+## Residual Risks & Watchpoints
+
+- **LLM Dependency:** Ollama availability gating exists, but fallback/resume strategies are minimal. Plan for queueing or alternate model endpoints.
+- **Data Growth:** Memory tiers will expand quickly; ensure Postgres vacuum/autovacuum settings handle vector tables at scale.
+- **Human Oversight:** Reflections flag misalignment but no human escalation path implemented; define procedure for “aligned == False”.
+- **Scheduler Reliability:** Consider moving nightly distillation to Celery Beat or external orchestrator for robustness.
+
+---
+
+## Readiness Verdict
+
+- **Architecture:** ✅ Sound and implemented as designed.
+- **Product Functionality:** ⚠️ Ready for internal alpha; needs quota enforcement, testing, and ops hardening for public launch.
+- **Blocking Items Before External Release:**
+  1. Automated testing & load validation.
+  2. Subscription/tier enforcement backed by real usage ledger data.
+  3. Service-to-service authentication & monitoring.
+
+With these addressed, NovaCoreAI can confidently progress to closed beta.
+
+---
+
+**Prepared for:** Noble NovaCoreAI leadership  
+**Next Review:** After completing priority action plan or before production deployment, whichever comes first.
 
 **Status:** ~60% Complete  
 **Technology:** Python + FastAPI + Uvicorn
