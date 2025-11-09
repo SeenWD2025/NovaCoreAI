@@ -203,8 +203,8 @@ async def stream_message(
             logger.info(f"Stream completed. Session: {session_id}, Tokens: {tokens_used}")
             
         except Exception as e:
-            logger.error(f"Streaming error: {e}")
-            error_data = json.dumps({"error": str(e), "done": True})
+            logger.error(f"Streaming error: {e}", exc_info=True)
+            error_data = json.dumps({"error": "An error occurred while processing your request", "done": True})
             yield f"data: {error_data}\n\n"
     
     return StreamingResponse(
