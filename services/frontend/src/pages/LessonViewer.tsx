@@ -15,11 +15,12 @@ import {
 } from 'lucide-react';
 import type { Lesson } from '@/types/curriculum';
 import curriculumService from '@/services/curriculum';
+import { showSuccess, showError, showXPGain, showLevelUp } from '@/utils/toast';
 
 export default function LessonViewer() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { refreshProgress } = useCurriculumStore();
+  const { progress, refreshProgress } = useCurriculumStore();
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
@@ -56,7 +57,7 @@ export default function LessonViewer() {
 
   const handleComplete = async () => {
     if (!lesson || !reflectionText.trim()) {
-      alert('Please write a reflection before completing the lesson.');
+      showError('Please write a reflection before completing the lesson.');
       return;
     }
 
@@ -69,16 +70,25 @@ export default function LessonViewer() {
       });
 
       // Refresh progress
+      const oldLevel = progress?.current_level;
       await refreshProgress();
 
-      // Show success message
-      alert(`Lesson completed! You earned ${result.xp_awarded} XP!`);
+      // Show success messages
+      showSuccess('Lesson completed successfully!');
+      showXPGain(result.xp_awarded);
+      
+      // Check if leveled up
+      if (result.new_level && oldLevel && result.new_level > oldLevel) {
+        showLevelUp(result.new_level);
+      }
 
-      // Navigate back to levels
-      navigate('/levels');
+      // Navigate back to levels after a short delay
+      setTimeout(() => {
+        navigate('/levels');
+      }, 1500);
     } catch (error: any) {
       console.error('Failed to complete lesson:', error);
-      alert(error.response?.data?.message || 'Failed to complete lesson');
+      showError(error.response?.data?.message || 'Failed to complete lesson');
     } finally {
       setCompleting(false);
     }
