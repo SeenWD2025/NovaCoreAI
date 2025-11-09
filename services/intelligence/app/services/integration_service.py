@@ -9,6 +9,11 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+# Cache for user tier info (to avoid hitting auth service on every request)
+_user_tier_cache = {}
+_cache_ttl_seconds = 300  # 5 minutes
+
 # Initialize Celery for reflection tasks
 celery_app = None
 if settings.enable_reflection:
@@ -22,6 +27,55 @@ if settings.enable_reflection:
 
 class IntegrationService:
     """Service for integrating with Memory and Reflection services."""
+    
+    @staticmethod
+    async def get_user_tier(user_id: UUID) -> str:
+        """
+        Get user's subscription tier from Auth service.
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            Subscription tier (free_trial, basic, or pro)
+        """
+        from datetime import datetime
+        
+        # Check cache first
+        cache_key = str(user_id)
+        if cache_key in _user_tier_cache:
+            cached_data = _user_tier_cache[cache_key]
+            # Check if cache is still valid
+            age = (datetime.utcnow() - cached_data["timestamp"]).total_seconds()
+            if age < _cache_ttl_seconds:
+                return cached_data["tier"]
+        
+        try:
+            # Fetch from auth service
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(
+                    f"{settings.auth_service_url}/auth/me",
+                    headers={"X-User-Id": str(user_id)}
+                )
+                
+                if response.status_code == 200:
+                    user_data = response.json()
+                    tier = user_data.get("subscription_tier", "free_trial")
+                    
+                    # Cache the result
+                    _user_tier_cache[cache_key] = {
+                        "tier": tier,
+                        "timestamp": datetime.utcnow()
+                    }
+                    
+                    return tier
+                else:
+                    logger.warning(f"Failed to fetch user tier: {response.status_code}")
+                    return "free_trial"  # Default to free tier on error
+                    
+        except Exception as e:
+            logger.error(f"Failed to get user tier: {e}")
+            return "free_trial"  # Default to free tier on error
     
     @staticmethod
     async def get_memory_context(

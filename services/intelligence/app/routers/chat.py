@@ -69,6 +69,10 @@ async def send_message(
     """Send a message and get a response (non-streaming)."""
     start_time = time.time()
     
+    # Validate message content
+    if not message.message or not message.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
     # Check if Ollama is ready
     if not ollama_service.is_ready:
         raise HTTPException(status_code=503, detail="LLM service not ready")
@@ -107,8 +111,10 @@ async def send_message(
     # Estimate tokens for rate limiting
     estimated_tokens = token_counter.count_tokens(full_prompt) + 500  # +500 for response
     
-    # Check token limits (get user tier from database)
-    user_tier = SessionService.get_user_tier(db, user_id)
+    # Get user's subscription tier
+    user_tier = await integration_service.get_user_tier(user_id)
+    
+    # Check token limits based on actual tier
     check_token_limit(db, user_id, estimated_tokens, user_tier)
     
     # Generate response
@@ -129,8 +135,15 @@ async def send_message(
         db, session_id, user_id, message.message, response_text, tokens_used, latency_ms
     )
     
-    # Track usage in usage_ledger
-    SessionService.track_token_usage(db, user_id, tokens_used)
+    # Record usage in ledger for billing/quota tracking
+    SessionService.record_usage_ledger(
+        db, user_id, "llm_tokens", tokens_used,
+        metadata={
+            "session_id": str(session_id),
+            "model": settings.llm_model,
+            "latency_ms": latency_ms
+        }
+    )
     
     # Store in STM (Short-Term Memory) for fast context retrieval
     await integration_service.store_stm_interaction(
@@ -169,6 +182,10 @@ async def stream_message(
     """Send a message and stream the response."""
     start_time = time.time()
     
+    # Validate message content
+    if not message.message or not message.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
     # Check if Ollama is ready
     if not ollama_service.is_ready:
         raise HTTPException(status_code=503, detail="LLM service not ready")
@@ -206,7 +223,11 @@ async def stream_message(
     
     # Estimate tokens for rate limiting
     estimated_tokens = token_counter.count_tokens(full_prompt) + 500
-    user_tier = SessionService.get_user_tier(db, user_id)
+    
+    # Get user's subscription tier
+    user_tier = await integration_service.get_user_tier(user_id)
+    
+    # Check token limits based on actual tier
     check_token_limit(db, user_id, estimated_tokens, user_tier)
     
     async def generate():
@@ -237,8 +258,19 @@ async def stream_message(
                 accumulated_response, tokens_used, latency_ms
             )
             
-            # Track usage in usage_ledger
-            SessionService.track_token_usage(db, user_id, tokens_used)
+            # Record usage in ledger for billing/quota tracking
+            try:
+                SessionService.record_usage_ledger(
+                    db, user_id, "llm_tokens", tokens_used,
+                    metadata={
+                        "session_id": str(session_id),
+                        "model": settings.llm_model,
+                        "latency_ms": latency_ms,
+                        "streaming": True
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to record usage: {e}")
             
             # Store in STM for fast context retrieval (don't await in generator)
             try:

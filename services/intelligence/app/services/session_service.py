@@ -151,54 +151,78 @@ class SessionService:
     
     @staticmethod
     def get_user_token_usage_today(db: Session, user_id: UUID) -> int:
-        """Get total tokens used by user today."""
+        """
+        Get total tokens used by user today from usage_ledger.
+        Falls back to prompts table if ledger is empty.
+        """
+        # Try usage_ledger first (more accurate)
         query = text("""
-            SELECT COALESCE(SUM(tokens_used), 0) as total
-            FROM prompts
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM usage_ledger
             WHERE user_id = :user_id
-            AND created_at >= CURRENT_DATE
+            AND resource_type = 'llm_tokens'
+            AND timestamp >= CURRENT_DATE
         """)
         result = db.execute(query, {"user_id": str(user_id)})
         row = result.fetchone()
-        return row[0] if row else 0
-    
-    @staticmethod
-    def get_user_tier(db: Session, user_id: UUID) -> str:
-        """Get user's subscription tier."""
-        try:
+        total = row[0] if row else 0
+        
+        # Fallback to prompts table if no ledger entries
+        if total == 0:
             query = text("""
-                SELECT subscription_tier
-                FROM users
-                WHERE id = :user_id
+                SELECT COALESCE(SUM(tokens_used), 0) as total
+                FROM prompts
+                WHERE user_id = :user_id
+                AND created_at >= CURRENT_DATE
             """)
             result = db.execute(query, {"user_id": str(user_id)})
             row = result.fetchone()
-            return row[0] if row else "free_trial"
-        except Exception as e:
-            logger.error(f"Failed to get user tier: {e}")
-            return "free_trial"
+            total = row[0] if row else 0
+        
+        return total
     
     @staticmethod
-    def track_token_usage(db: Session, user_id: UUID, tokens_used: int) -> bool:
-        """Track token usage in usage_ledger."""
-        try:
-            import json
-            query = text("""
-                INSERT INTO usage_ledger (user_id, resource_type, amount, metadata, timestamp)
-                VALUES (:user_id, :resource_type, :amount, :metadata::jsonb, NOW())
-            """)
-            db.execute(
-                query,
-                {
-                    "user_id": str(user_id),
-                    "resource_type": "llm_tokens",
-                    "amount": tokens_used,
-                    "metadata": json.dumps({})
-                }
-            )
-            db.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Failed to track token usage: {e}")
-            db.rollback()
-            return False
+    def record_usage_ledger(
+        db: Session,
+        user_id: UUID,
+        resource_type: str,
+        amount: int,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> UUID:
+        """
+        Record usage in the usage_ledger table for billing and quota tracking.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            resource_type: Type of resource (e.g., 'llm_tokens', 'memory_storage')
+            amount: Amount consumed
+            metadata: Optional metadata about the usage
+            
+        Returns:
+            Usage ledger entry ID
+        """
+        import json
+        
+        ledger_id = uuid4()
+        query = text("""
+            INSERT INTO usage_ledger (id, user_id, resource_type, amount, metadata, timestamp)
+            VALUES (:id, :user_id, :resource_type, :amount, :metadata::jsonb, NOW())
+            RETURNING id
+        """)
+        
+        result = db.execute(
+            query,
+            {
+                "id": str(ledger_id),
+                "user_id": str(user_id),
+                "resource_type": resource_type,
+                "amount": amount,
+                "metadata": json.dumps(metadata) if metadata else None
+            }
+        )
+        db.commit()
+        
+        logger.info(f"Recorded usage: {resource_type}={amount} for user {user_id}")
+        
+        return ledger_id
