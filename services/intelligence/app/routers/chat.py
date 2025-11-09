@@ -1,0 +1,298 @@
+"""Chat endpoints for Intelligence Core."""
+from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+from uuid import UUID
+from typing import Optional
+import time
+import logging
+import json
+
+from app.database import get_db
+from app.models.schemas import (
+    ChatMessage, ChatResponse, SessionListResponse, 
+    SessionHistoryResponse, SessionInfo, PromptInfo
+)
+from app.services.ollama_service import ollama_service
+from app.services.session_service import SessionService
+from app.utils.token_counter import token_counter
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+def get_user_id(x_user_id: Optional[str] = Header(None)) -> UUID:
+    """Extract user ID from header."""
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="User ID header missing")
+    try:
+        return UUID(x_user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+
+def check_token_limit(db: Session, user_id: UUID, required_tokens: int, tier: str):
+    """Check if user has remaining tokens for the day."""
+    # Get tier limits
+    tier_limits = {
+        "free_trial": settings.free_tier_tokens_day,
+        "basic": settings.basic_tier_tokens_day,
+        "pro": settings.pro_tier_tokens_day
+    }
+    
+    limit = tier_limits.get(tier, settings.free_tier_tokens_day)
+    
+    # Pro tier has unlimited tokens
+    if limit == -1:
+        return True
+    
+    # Check current usage
+    used_today = SessionService.get_user_token_usage_today(db, user_id)
+    
+    if used_today + required_tokens > limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily token limit exceeded. Used: {used_today}/{limit}"
+        )
+    
+    return True
+
+
+@router.post("/message", response_model=ChatResponse)
+async def send_message(
+    message: ChatMessage,
+    user_id: UUID = Depends(get_user_id),
+    db: Session = Depends(get_db)
+):
+    """Send a message and get a response (non-streaming)."""
+    start_time = time.time()
+    
+    # Check if Ollama is ready
+    if not ollama_service.is_ready:
+        raise HTTPException(status_code=503, detail="LLM service not ready")
+    
+    # Get or create session
+    if message.session_id:
+        session = SessionService.get_session(db, message.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session_id = message.session_id
+    else:
+        session_id = SessionService.create_session(db, user_id, settings.llm_model)
+    
+    # Build context from history if requested
+    context = ""
+    if message.use_memory and message.session_id:
+        history = SessionService.get_session_history(db, message.session_id, limit=5)
+        for prompt in history[-5:]:  # Last 5 exchanges
+            context += f"User: {prompt['input_text']}\nAssistant: {prompt['output_text']}\n\n"
+    
+    # Prepare prompt
+    full_prompt = f"{context}User: {message.message}\nAssistant:"
+    
+    # Estimate tokens for rate limiting
+    estimated_tokens = token_counter.count_tokens(full_prompt) + 500  # +500 for response
+    
+    # Check token limits (get user tier from database)
+    check_token_limit(db, user_id, estimated_tokens, "free_trial")  # TODO: Get actual tier
+    
+    # Generate response
+    system_prompt = "You are Noble NovaCoreAI, an ethical AI assistant focused on truth, wisdom, and human flourishing. Provide thoughtful, helpful responses aligned with the Reclaimer Ethos."
+    response_text = await ollama_service.generate_response(
+        prompt=full_prompt,
+        system_prompt=system_prompt,
+        temperature=0.7,
+        max_tokens=2000
+    )
+    
+    # Calculate actual tokens used
+    tokens_used = token_counter.count_tokens(full_prompt + response_text)
+    latency_ms = int((time.time() - start_time) * 1000)
+    
+    # Store the interaction
+    SessionService.store_prompt(
+        db, session_id, user_id, message.message, response_text, tokens_used, latency_ms
+    )
+    
+    # TODO: Trigger reflection worker (Phase 7)
+    logger.info(f"Message processed. Session: {session_id}, Tokens: {tokens_used}, Latency: {latency_ms}ms")
+    
+    return ChatResponse(
+        response=response_text,
+        session_id=session_id,
+        tokens_used=tokens_used,
+        latency_ms=latency_ms
+    )
+
+
+@router.post("/stream")
+async def stream_message(
+    message: ChatMessage,
+    user_id: UUID = Depends(get_user_id),
+    db: Session = Depends(get_db)
+):
+    """Send a message and stream the response."""
+    start_time = time.time()
+    
+    # Check if Ollama is ready
+    if not ollama_service.is_ready:
+        raise HTTPException(status_code=503, detail="LLM service not ready")
+    
+    # Get or create session
+    if message.session_id:
+        session = SessionService.get_session(db, message.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session_id = message.session_id
+    else:
+        session_id = SessionService.create_session(db, user_id, settings.llm_model)
+    
+    # Build context from history
+    context = ""
+    if message.use_memory and message.session_id:
+        history = SessionService.get_session_history(db, message.session_id, limit=5)
+        for prompt in history[-5:]:
+            context += f"User: {prompt['input_text']}\nAssistant: {prompt['output_text']}\n\n"
+    
+    # Prepare prompt
+    full_prompt = f"{context}User: {message.message}\nAssistant:"
+    
+    # Estimate tokens for rate limiting
+    estimated_tokens = token_counter.count_tokens(full_prompt) + 500
+    check_token_limit(db, user_id, estimated_tokens, "free_trial")  # TODO: Get actual tier
+    
+    async def generate():
+        """Generate streaming response."""
+        accumulated_response = ""
+        system_prompt = "You are Noble NovaCoreAI, an ethical AI assistant focused on truth, wisdom, and human flourishing. Provide thoughtful, helpful responses aligned with the Reclaimer Ethos."
+        
+        try:
+            async for chunk in ollama_service.generate_streaming_response(
+                prompt=full_prompt,
+                system_prompt=system_prompt,
+                temperature=0.7,
+                max_tokens=2000
+            ):
+                if chunk:
+                    accumulated_response += chunk
+                    # Send chunk as SSE
+                    data = json.dumps({"content": chunk, "done": False})
+                    yield f"data: {data}\n\n"
+            
+            # Calculate metrics
+            tokens_used = token_counter.count_tokens(full_prompt + accumulated_response)
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            # Store the interaction
+            SessionService.store_prompt(
+                db, session_id, user_id, message.message, 
+                accumulated_response, tokens_used, latency_ms
+            )
+            
+            # Send final chunk with metadata
+            data = json.dumps({
+                "content": "",
+                "done": True,
+                "session_id": str(session_id),
+                "tokens_used": tokens_used,
+                "latency_ms": latency_ms
+            })
+            yield f"data: {data}\n\n"
+            
+            logger.info(f"Stream completed. Session: {session_id}, Tokens: {tokens_used}")
+            
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            error_data = json.dumps({"error": str(e), "done": True})
+            yield f"data: {error_data}\n\n"
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.get("/sessions", response_model=SessionListResponse)
+async def get_sessions(
+    user_id: UUID = Depends(get_user_id),
+    db: Session = Depends(get_db)
+):
+    """Get all sessions for the current user."""
+    sessions_data = SessionService.get_user_sessions(db, user_id, limit=50)
+    
+    sessions = [
+        SessionInfo(
+            id=s["id"],
+            user_id=s["user_id"],
+            status=s["status"],
+            model_name=s["model_name"],
+            created_at=s["created_at"],
+            ended_at=s["ended_at"]
+        )
+        for s in sessions_data
+    ]
+    
+    return SessionListResponse(sessions=sessions, total=len(sessions))
+
+
+@router.get("/history/{session_id}", response_model=SessionHistoryResponse)
+async def get_history(
+    session_id: UUID,
+    user_id: UUID = Depends(get_user_id),
+    db: Session = Depends(get_db)
+):
+    """Get conversation history for a session."""
+    # Verify session belongs to user
+    session = SessionService.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    if str(session["user_id"]) != str(user_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    prompts_data = SessionService.get_session_history(db, session_id, limit=100)
+    
+    prompts = [
+        PromptInfo(
+            id=p["id"],
+            session_id=p["session_id"],
+            user_id=p["user_id"],
+            input_text=p["input_text"],
+            output_text=p["output_text"],
+            tokens_used=p["tokens_used"],
+            latency_ms=p["latency_ms"],
+            created_at=p["created_at"]
+        )
+        for p in prompts_data
+    ]
+    
+    return SessionHistoryResponse(
+        session_id=session_id,
+        prompts=prompts,
+        total=len(prompts)
+    )
+
+
+@router.post("/sessions/{session_id}/end")
+async def end_session(
+    session_id: UUID,
+    user_id: UUID = Depends(get_user_id),
+    db: Session = Depends(get_db)
+):
+    """End a chat session."""
+    # Verify session belongs to user
+    session = SessionService.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    if str(session["user_id"]) != str(user_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    SessionService.end_session(db, session_id)
+    
+    return {"message": "Session ended", "session_id": str(session_id)}
