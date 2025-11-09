@@ -47,6 +47,7 @@ services:
       - MEMORY_SERVICE_URL=http://memory:8001
       - POLICY_SERVICE_URL=http://noble-spirit:4000
       - NGS_SERVICE_URL=http://ngs-curriculum:9000
+      - MCP_SERVICE_URL=http://mcp-server:7000
     ports:
       - "5000:5000"
     depends_on:
@@ -192,7 +193,23 @@ services:
       postgres:
         condition: service_healthy
   
-  # Rust (mcp-server) stub to be added in Phase 11
+  mcp-server:
+    build:
+      context: ./services/mcp-server
+    container_name: noble-mcp
+    environment:
+      - PORT=7000
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - INTELLIGENCE_SERVICE_URL=http://intelligence:8000
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - RUST_LOG=info
+    ports:
+      - "7000:7000"
+    depends_on:
+      memory:
+        condition: service_started
+      intelligence:
+        condition: service_started
 
 volumes:
   postgres_data:
