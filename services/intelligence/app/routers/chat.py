@@ -107,8 +107,11 @@ async def send_message(
     # Estimate tokens for rate limiting
     estimated_tokens = token_counter.count_tokens(full_prompt) + 500  # +500 for response
     
-    # Check token limits (get user tier from database)
-    check_token_limit(db, user_id, estimated_tokens, "free_trial")  # TODO: Get actual tier
+    # Get user's subscription tier
+    user_tier = await integration_service.get_user_tier(user_id)
+    
+    # Check token limits based on actual tier
+    check_token_limit(db, user_id, estimated_tokens, user_tier)
     
     # Generate response
     system_prompt = "You are Noble NovaCoreAI, an ethical AI assistant focused on truth, wisdom, and human flourishing. Provide thoughtful, helpful responses aligned with the Reclaimer Ethos."
@@ -126,6 +129,16 @@ async def send_message(
     # Store the interaction
     SessionService.store_prompt(
         db, session_id, user_id, message.message, response_text, tokens_used, latency_ms
+    )
+    
+    # Record usage in ledger for billing/quota tracking
+    SessionService.record_usage_ledger(
+        db, user_id, "llm_tokens", tokens_used,
+        metadata={
+            "session_id": str(session_id),
+            "model": settings.llm_model,
+            "latency_ms": latency_ms
+        }
     )
     
     # Store in STM (Short-Term Memory) for fast context retrieval
@@ -202,7 +215,12 @@ async def stream_message(
     
     # Estimate tokens for rate limiting
     estimated_tokens = token_counter.count_tokens(full_prompt) + 500
-    check_token_limit(db, user_id, estimated_tokens, "free_trial")  # TODO: Get actual tier
+    
+    # Get user's subscription tier
+    user_tier = await integration_service.get_user_tier(user_id)
+    
+    # Check token limits based on actual tier
+    check_token_limit(db, user_id, estimated_tokens, user_tier)
     
     async def generate():
         """Generate streaming response."""
@@ -231,6 +249,20 @@ async def stream_message(
                 db, session_id, user_id, message.message, 
                 accumulated_response, tokens_used, latency_ms
             )
+            
+            # Record usage in ledger for billing/quota tracking
+            try:
+                SessionService.record_usage_ledger(
+                    db, user_id, "llm_tokens", tokens_used,
+                    metadata={
+                        "session_id": str(session_id),
+                        "model": settings.llm_model,
+                        "latency_ms": latency_ms,
+                        "streaming": True
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to record usage: {e}")
             
             # Store in STM for fast context retrieval (don't await in generator)
             try:

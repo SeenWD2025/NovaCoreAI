@@ -24,8 +24,9 @@ class Settings(BaseSettings):
     basic_tier_tokens_day: int = int(os.getenv("BASIC_TIER_TOKENS_DAY", "50000"))
     pro_tier_tokens_day: int = int(os.getenv("PRO_TIER_TOKENS_DAY", "-1"))
     
-    # Memory Service
+    # Service URLs
     memory_service_url: str = os.getenv("MEMORY_SERVICE_URL", "http://localhost:8001")
+    auth_service_url: str = os.getenv("AUTH_SERVICE_URL", "http://localhost:3001")
     
     # Reflection Worker (Celery)
     celery_broker_url: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/2")
