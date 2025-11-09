@@ -174,6 +174,19 @@ services:
       noble-spirit:
         condition: service_started
   
+  distillation-worker:
+    build:
+      context: ./services/distillation-worker
+    container_name: noble-distillation
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - POLICY_SERVICE_URL=http://noble-spirit:4000
+      - LTM_PROMOTION_THRESHOLD=${LTM_PROMOTION_THRESHOLD:-3}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  
   # Rust (mcp-server) stub to be added in Phase 11
 
 volumes:
