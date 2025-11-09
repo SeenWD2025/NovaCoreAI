@@ -30,9 +30,11 @@ func main() {
 
 	// Initialize services
 	progressService := services.NewProgressService(db, cfg)
+	lessonService := services.NewLessonService(db)
 
 	// Initialize handlers
 	handler := handlers.NewHandler(progressService)
+	lessonHandler := handlers.NewLessonHandler(lessonService)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -69,6 +71,15 @@ func main() {
 	// Level routes
 	app.Get("/ngs/levels", handler.GetLevels)
 	app.Get("/ngs/levels/:level", handler.GetLevel)
+
+	// Lesson routes
+	app.Get("/ngs/levels/:level/lessons", lessonHandler.GetLessonsByLevel)
+	app.Get("/ngs/lessons/:id", lessonHandler.GetLesson)
+	app.Post("/ngs/lessons/:id/complete", lessonHandler.CompleteLessonHandler)
+
+	// Reflection routes
+	app.Get("/ngs/reflections", lessonHandler.GetReflections)
+	app.Post("/ngs/reflections", lessonHandler.SubmitReflection)
 
 	// Start server in a goroutine
 	go func() {
