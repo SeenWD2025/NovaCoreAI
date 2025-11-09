@@ -1,12 +1,11 @@
 """Token counting utilities."""
-import tiktoken
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 class TokenCounter:
-    """Token counter using tiktoken."""
+    """Token counter using tiktoken with lazy initialization."""
     
     def __init__(self, model: str = "gpt-3.5-turbo"):
         """Initialize token counter.
@@ -14,20 +13,41 @@ class TokenCounter:
         Note: We use GPT-3.5 encoding as a reasonable approximation for Mistral.
         Actual token counts may vary slightly.
         """
-        try:
-            self.encoding = tiktoken.encoding_for_model(model)
-        except KeyError:
-            # Fallback to cl100k_base encoding
-            self.encoding = tiktoken.get_encoding("cl100k_base")
+        self.model = model
+        self._encoding = None
+        self._use_fallback = False
+    
+    def _get_encoding(self):
+        """Lazy load encoding on first use."""
+        if self._encoding is None and not self._use_fallback:
+            try:
+                import tiktoken
+                self._encoding = tiktoken.encoding_for_model(self.model)
+                logger.info("tiktoken encoding loaded successfully")
+            except ImportError:
+                logger.warning("tiktoken not available, using character-based estimation")
+                self._use_fallback = True
+            except Exception as e:
+                logger.warning(f"Failed to load tiktoken encoding: {e}. Using character-based estimation")
+                self._use_fallback = True
+        return self._encoding
     
     def count_tokens(self, text: str) -> int:
         """Count tokens in text."""
+        if self._use_fallback:
+            # Rough estimate: ~4 chars per token
+            return max(len(text) // 4, 1)
+        
         try:
-            return len(self.encoding.encode(text))
+            encoding = self._get_encoding()
+            if encoding:
+                return len(encoding.encode(text))
+            else:
+                return max(len(text) // 4, 1)
         except Exception as e:
             logger.error(f"Token counting error: {e}")
             # Rough estimate: ~4 chars per token
-            return len(text) // 4
+            return max(len(text) // 4, 1)
     
     def count_conversation_tokens(self, messages: list) -> int:
         """Count tokens in a conversation.
@@ -48,5 +68,5 @@ class TokenCounter:
         return total
 
 
-# Global instance
+# Global instance - encoding will be loaded on first use
 token_counter = TokenCounter()

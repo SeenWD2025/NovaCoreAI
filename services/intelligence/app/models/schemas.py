@@ -31,6 +31,8 @@ class StreamChunk(BaseModel):
 
 class SessionInfo(BaseModel):
     """Session information."""
+    model_config = {"protected_namespaces": ()}
+    
     id: UUID
     user_id: UUID
     status: str
@@ -66,6 +68,8 @@ class SessionHistoryResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Health check response."""
+    model_config = {"protected_namespaces": ()}
+    
     status: str
     service: str
     database: bool
