@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Memory Service
     memory_service_url: str = os.getenv("MEMORY_SERVICE_URL", "http://localhost:8001")
     
+    # Reflection Worker (Celery)
+    celery_broker_url: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/2")
+    enable_reflection: bool = os.getenv("ENABLE_REFLECTION", "true").lower() == "true"
+    
     class Config:
         env_file = ".env"
 

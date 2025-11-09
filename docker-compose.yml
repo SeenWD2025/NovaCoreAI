@@ -90,6 +90,9 @@ services:
       - FREE_TIER_TOKENS_DAY=${FREE_TIER_TOKENS_DAY:-1000}
       - BASIC_TIER_TOKENS_DAY=${BASIC_TIER_TOKENS_DAY:-50000}
       - PRO_TIER_TOKENS_DAY=${PRO_TIER_TOKENS_DAY:--1}
+      - MEMORY_SERVICE_URL=http://memory:8001
+      - CELERY_BROKER_URL=redis://redis:6379/2
+      - ENABLE_REFLECTION=${ENABLE_REFLECTION:-true}
     ports:
       - "8000:8000"
     depends_on:
@@ -97,6 +100,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      memory:
+        condition: service_started
   
   memory:
     build:

@@ -15,6 +15,7 @@ from app.models.schemas import (
 )
 from app.services.ollama_service import ollama_service
 from app.services.session_service import SessionService
+from app.services.integration_service import integration_service
 from app.utils.token_counter import token_counter
 from app.config import settings
 
@@ -81,12 +82,24 @@ async def send_message(
     else:
         session_id = SessionService.create_session(db, user_id, settings.llm_model)
     
-    # Build context from history if requested
+    # Build context from memory service if requested
     context = ""
-    if message.use_memory and message.session_id:
-        history = SessionService.get_session_history(db, message.session_id, limit=5)
-        for prompt in history[-5:]:  # Last 5 exchanges
-            context += f"User: {prompt['input_text']}\nAssistant: {prompt['output_text']}\n\n"
+    if message.use_memory:
+        # Get memory context from Memory Service (STM + ITM + LTM)
+        memory_context = await integration_service.get_memory_context(
+            user_id=user_id,
+            session_id=session_id if message.session_id else None,
+            limit=5
+        )
+        
+        # Build context prompt from memory
+        context = integration_service.build_context_prompt(memory_context)
+        
+        # Fallback to local history if memory service unavailable
+        if not context and message.session_id:
+            history = SessionService.get_session_history(db, message.session_id, limit=5)
+            for prompt in history[-5:]:  # Last 5 exchanges
+                context += f"User: {prompt['input_text']}\nAssistant: {prompt['output_text']}\n\n"
     
     # Prepare prompt
     full_prompt = f"{context}User: {message.message}\nAssistant:"
@@ -115,7 +128,24 @@ async def send_message(
         db, session_id, user_id, message.message, response_text, tokens_used, latency_ms
     )
     
-    # TODO: Trigger reflection worker (Phase 7)
+    # Store in STM (Short-Term Memory) for fast context retrieval
+    await integration_service.store_stm_interaction(
+        user_id=user_id,
+        session_id=session_id,
+        input_text=message.message,
+        output_text=response_text,
+        tokens=tokens_used
+    )
+    
+    # Trigger reflection worker asynchronously
+    integration_service.trigger_reflection(
+        user_id=user_id,
+        session_id=session_id,
+        input_text=message.message,
+        output_text=response_text,
+        context={"tokens_used": tokens_used, "latency_ms": latency_ms}
+    )
+    
     logger.info(f"Message processed. Session: {session_id}, Tokens: {tokens_used}, Latency: {latency_ms}ms")
     
     return ChatResponse(
@@ -148,12 +178,24 @@ async def stream_message(
     else:
         session_id = SessionService.create_session(db, user_id, settings.llm_model)
     
-    # Build context from history
+    # Build context from memory service if requested
     context = ""
-    if message.use_memory and message.session_id:
-        history = SessionService.get_session_history(db, message.session_id, limit=5)
-        for prompt in history[-5:]:
-            context += f"User: {prompt['input_text']}\nAssistant: {prompt['output_text']}\n\n"
+    if message.use_memory:
+        # Get memory context from Memory Service
+        memory_context = await integration_service.get_memory_context(
+            user_id=user_id,
+            session_id=session_id if message.session_id else None,
+            limit=5
+        )
+        
+        # Build context prompt from memory
+        context = integration_service.build_context_prompt(memory_context)
+        
+        # Fallback to local history if memory service unavailable
+        if not context and message.session_id:
+            history = SessionService.get_session_history(db, message.session_id, limit=5)
+            for prompt in history[-5:]:
+                context += f"User: {prompt['input_text']}\nAssistant: {prompt['output_text']}\n\n"
     
     # Prepare prompt
     full_prompt = f"{context}User: {message.message}\nAssistant:"
@@ -189,6 +231,30 @@ async def stream_message(
                 db, session_id, user_id, message.message, 
                 accumulated_response, tokens_used, latency_ms
             )
+            
+            # Store in STM for fast context retrieval (don't await in generator)
+            try:
+                await integration_service.store_stm_interaction(
+                    user_id=user_id,
+                    session_id=session_id,
+                    input_text=message.message,
+                    output_text=accumulated_response,
+                    tokens=tokens_used
+                )
+            except Exception as e:
+                logger.warning(f"Failed to store STM: {e}")
+            
+            # Trigger reflection worker asynchronously
+            try:
+                integration_service.trigger_reflection(
+                    user_id=user_id,
+                    session_id=session_id,
+                    input_text=message.message,
+                    output_text=accumulated_response,
+                    context={"tokens_used": tokens_used, "latency_ms": latency_ms}
+                )
+            except Exception as e:
+                logger.warning(f"Failed to trigger reflection: {e}")
             
             # Send final chunk with metadata
             data = json.dumps({
