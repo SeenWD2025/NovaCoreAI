@@ -69,6 +69,10 @@ async def send_message(
     """Send a message and get a response (non-streaming)."""
     start_time = time.time()
     
+    # Validate message content
+    if not message.message or not message.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
     # Check if Ollama is ready
     if not ollama_service.is_ready:
         raise HTTPException(status_code=503, detail="LLM service not ready")
@@ -177,6 +181,10 @@ async def stream_message(
 ):
     """Send a message and stream the response."""
     start_time = time.time()
+    
+    # Validate message content
+    if not message.message or not message.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
     
     # Check if Ollama is ready
     if not ollama_service.is_ready:

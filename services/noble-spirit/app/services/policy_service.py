@@ -23,19 +23,51 @@ logger = logging.getLogger(__name__)
 class PolicyService:
     """Service for policy validation and management."""
     
-    # Harmful content patterns (basic)
+    # Harmful content patterns (expanded)
     HARMFUL_PATTERNS = [
-        r'\b(kill|murder|harm|attack)\s+(people|someone|users)\b',
-        r'\b(steal|hack|break\s+into)\b.*\b(data|information|account)\b',
-        r'\b(create|make|build)\s+(virus|malware|exploit)\b',
-        r'\b(illegal|unlawful)\s+(activity|action)\b',
+        # Violence and harm
+        r'\b(kill|murder|harm|attack|assault|injure|torture)\s+(people|someone|users|person|child|children)\b',
+        r'\b(suicide|self-harm|cut\s+yourself|end\s+your\s+life)\b',
+        r'\b(bomb|explosive|weapon|gun)\s+(instructions|tutorial|how\s+to)\b',
+        
+        # Cybercrime
+        r'\b(steal|hack|crack|break\s+into|bypass)\b.*\b(password|data|information|account|system|database)\b',
+        r'\b(create|make|build|write|code)\s+(virus|malware|exploit|ransomware|trojan|backdoor)\b',
+        r'\b(ddos|denial\s+of\s+service|sql\s+injection|xss\s+attack)\b',
+        r'\b(phishing|scam|fraud)\s+(email|message|website|page)\b',
+        
+        # Illegal activities
+        r'\b(illegal|unlawful|criminal)\s+(activity|action|operation|business)\b',
+        r'\b(drug|narcotics|controlled\s+substance)\s+(deal|traffic|sell|distribute)\b',
+        r'\b(money\s+laundering|tax\s+evasion|insider\s+trading)\b',
+        r'\b(child\s+pornography|child\s+abuse|csam)\b',
+        
+        # Privacy violations
+        r'\b(dox|doxx|personal\s+information|private\s+data)\s+(leak|expose|publish|share)\b',
+        r'\b(spy|surveil|track|monitor)\s+(without|secret|covert|hidden)\b',
     ]
     
-    # Unethical patterns
+    # Unethical patterns (expanded)
     UNETHICAL_PATTERNS = [
-        r'\b(lie|deceive|manipulate)\s+(users?|people)\b',
+        # Deception
+        r'\b(lie|deceive|mislead|trick|manipulate|gaslight)\s+(users?|people|customers|clients)\b',
+        r'\b(fake|false|fabricated|forged)\s+(evidence|document|certificate|credentials)\b',
+        r'\b(impersonate|pretend\s+to\s+be|pose\s+as)\b.*\b(authority|official|expert)\b',
+        
+        # Discrimination and bias
         r'\b(discriminate|bias)\s+against\b',
-        r'\b(exploit|take\s+advantage)\s+of\b',
+        r'\b(racist|sexist|homophobic|transphobic|xenophobic|ableist)\b',
+        r'\b(hate\s+speech|slur|derogatory)\b',
+        
+        # Exploitation
+        r'\b(exploit|take\s+advantage|abuse|manipulate)\s+(vulnerable|children|elderly|disabled)\b',
+        r'\b(pyramid\s+scheme|ponzi\s+scheme|multi-level\s+marketing|mlm)\b',
+        r'\b(clickbait|misleading\s+title|fake\s+news)\b',
+        
+        # Privacy and consent
+        r'\b(without\s+consent|non-consensual|unconsented)\b',
+        r'\b(revenge\s+porn|deepfake|non-consensual\s+intimate)\b',
+        r'\b(spam|unsolicited|unwanted)\s+(message|email|contact)\b',
     ]
     
     def validate_content(
