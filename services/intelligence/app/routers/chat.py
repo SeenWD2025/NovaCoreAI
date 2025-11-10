@@ -24,6 +24,9 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+# Security constants
+MAX_MESSAGE_LENGTH = 10000  # Maximum message length in characters
+
 
 def get_user_id(x_user_id: Optional[str] = Header(None)) -> UUID:
     """Extract user ID from header."""
@@ -75,6 +78,13 @@ async def send_message(
     # Validate message content
     if not message.message or not message.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    # Validate message length (input validation security)
+    if len(message.message) > MAX_MESSAGE_LENGTH:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Message too long. Maximum {MAX_MESSAGE_LENGTH} characters allowed."
+        )
     
     # Check if Ollama is ready
     if not ollama_service.is_ready:
@@ -209,6 +219,13 @@ async def stream_message(
     # Validate message content
     if not message.message or not message.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    # Validate message length (input validation security)
+    if len(message.message) > MAX_MESSAGE_LENGTH:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Message too long. Maximum {MAX_MESSAGE_LENGTH} characters allowed."
+        )
     
     # Check if Ollama is ready
     if not ollama_service.is_ready:
