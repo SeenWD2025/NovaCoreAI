@@ -134,6 +134,56 @@ groups:
           summary: "Embedding generation is slow"
           description: "95th percentile embedding generation time is {{ $value }}s."
 
+  - name: usage_quota
+    interval: 60s
+    rules:
+      # High quota usage rate - users hitting limits frequently
+      - alert: HighQuotaHitRate
+        expr: |
+          rate(quota_exceeded_total[1h]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate of quota exceeded events"
+          description: "Users are hitting quota limits {{ $value }} times per hour. Consider tier limits or user behavior."
+
+      # Token quota near limit
+      - alert: UserTokenQuotaWarning
+        expr: |
+          (sum by (user_id, tier) (usage_tokens_total{period="daily"}) 
+           / on (tier) group_left() tier_token_limit) > 0.8
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "User {{ $labels.user_id }} near token quota"
+          description: "User {{ $labels.user_id }} ({{ $labels.tier }}) has used {{ $value | humanizePercentage }} of daily token quota."
+
+      # Message quota near limit
+      - alert: UserMessageQuotaWarning
+        expr: |
+          (sum by (user_id, tier) (usage_messages_total{period="daily"})
+           / on (tier) group_left() tier_message_limit) > 0.8
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "User {{ $labels.user_id }} near message quota"
+          description: "User {{ $labels.user_id }} ({{ $labels.tier }}) has used {{ $value | humanizePercentage }} of daily message quota."
+
+      # Unusual spike in usage (potential abuse)
+      - alert: UnusualUsageSpike
+        expr: |
+          rate(usage_tokens_total[5m]) > 
+          avg_over_time(rate(usage_tokens_total[5m])[1h:5m]) * 3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unusual usage spike for user {{ $labels.user_id }}"
+          description: "User {{ $labels.user_id }} has a 3x increase in usage rate. Potential abuse or automation."
+
   - name: resource_usage
     interval: 30s
     rules:

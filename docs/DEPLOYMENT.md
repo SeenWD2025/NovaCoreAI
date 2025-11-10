@@ -59,9 +59,14 @@ POSTGRES_USER=noble
 POSTGRES_PASSWORD=your_secure_password_here
 POSTGRES_DB=noble_novacore
 
-# JWT Secrets
+# JWT Secrets (generate with: openssl rand -base64 32)
 JWT_SECRET=your_jwt_secret_here_min_32_chars
 JWT_REFRESH_SECRET=your_refresh_secret_here_min_32_chars
+
+# Service-to-Service Authentication (P0 Security Feature)
+# Generate with: openssl rand -base64 32
+SERVICE_JWT_SECRET=your_service_jwt_secret_change_in_production
+SERVICE_TOKEN_EXPIRES_IN=24h
 
 # LLM Configuration
 OLLAMA_URL=http://host.docker.internal:11434
@@ -72,6 +77,8 @@ GPU_ENABLED=false
 STRIPE_SECRET_KEY=sk_test_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
 ```
+
+**Important Security Note:** The `SERVICE_JWT_SECRET` is critical for inter-service communication security. See [SERVICE_AUTHENTICATION.md](./SERVICE_AUTHENTICATION.md) for detailed configuration.
 
 ### 3. Install Ollama & Model
 
