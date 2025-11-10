@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Request, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
@@ -28,5 +28,16 @@ export class AuthController {
   @Get('me')
   async getProfile(@Request() req) {
     return this.authService.getUserById(req.user.userId);
+  }
+
+  @Get('verify-email')
+  async verifyEmail(@Query('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('resend-verification')
+  async resendVerificationEmail(@Request() req) {
+    return this.authService.resendVerificationEmail(req.user.userId);
   }
 }

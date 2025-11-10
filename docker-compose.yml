@@ -69,14 +69,25 @@ services:
     container_name: noble-auth
     environment:
       - PORT=3001
+      - NODE_ENV=development
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - REDIS_URL=redis://redis:6379
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5000}
+      - EMAIL_FROM=${EMAIL_FROM:-noreply@novacore.ai}
+      - SMTP_HOST=${SMTP_HOST:-smtp.ethereal.email}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
     ports:
       - "3001:3001"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./services/auth-billing:/app

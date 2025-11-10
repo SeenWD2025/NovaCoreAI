@@ -1,8 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import { RedisService } from '../redis/redis.service';
+import { EmailService } from '../email/email.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -15,6 +17,7 @@ export class AuthService {
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -51,6 +54,14 @@ export class AuthService {
 
     const { accessToken, refreshToken } = await this.generateTokens(user.id, user.email, user.role);
 
+    // Send verification email (don't block registration if email fails)
+    try {
+      await this.sendVerificationEmail(user.id);
+    } catch (error) {
+      // Log error but don't fail registration
+      console.error('Failed to send verification email:', error);
+    }
+
     return {
       user: {
         id: user.id,
@@ -58,6 +69,7 @@ export class AuthService {
         role: user.role,
         subscription_tier: user.subscription_tier,
         trial_ends_at: user.trial_ends_at,
+        email_verified: false, // New users are not verified
       },
       accessToken,
       refreshToken,
@@ -233,5 +245,144 @@ export class AuthService {
     }
 
     return null;
+  }
+
+  /**
+   * Generate a secure random token for email verification
+   * @returns 32-byte hex string token
+   */
+  private generateVerificationToken(): string {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  /**
+   * Send email verification to user
+   * @param userId User ID
+   */
+  async sendVerificationEmail(userId: string): Promise<void> {
+    // Get user email
+    const result = await this.db.query(
+      'SELECT email, email_verified FROM users WHERE id = $1',
+      [userId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('User not found');
+    }
+
+    const user = result.rows[0];
+
+    if (user.email_verified) {
+      throw new ConflictException('Email already verified');
+    }
+
+    // Generate verification token
+    const token = this.generateVerificationToken();
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiration
+
+    // Store token in database
+    await this.db.query(
+      `UPDATE users 
+       SET email_verification_token = $1, 
+           email_verification_token_expires_at = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [token, expiresAt, userId],
+    );
+
+    // Send verification email
+    const emailSent = await this.emailService.sendVerificationEmail(user.email, token);
+
+    if (!emailSent) {
+      throw new HttpException(
+        'Failed to send verification email. Please try again later.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Verify email with token
+   * @param token Verification token
+   */
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    if (!token || token.trim() === '') {
+      throw new HttpException('Invalid verification token', HttpStatus.BAD_REQUEST);
+    }
+
+    // Find user by token
+    const result = await this.db.query(
+      `SELECT id, email, email_verified, email_verification_token_expires_at 
+       FROM users 
+       WHERE email_verification_token = $1`,
+      [token],
+    );
+
+    if (result.rows.length === 0) {
+      throw new HttpException(
+        'Invalid or expired verification token',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const user = result.rows[0];
+
+    // Check if already verified
+    if (user.email_verified) {
+      throw new ConflictException('Email already verified');
+    }
+
+    // Check if token expired
+    const now = new Date();
+    const expiresAt = new Date(user.email_verification_token_expires_at);
+
+    if (now > expiresAt) {
+      throw new HttpException(
+        'Verification token has expired. Please request a new one.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Mark email as verified and clear token (single-use)
+    await this.db.query(
+      `UPDATE users 
+       SET email_verified = true,
+           email_verification_token = NULL,
+           email_verification_token_expires_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [user.id],
+    );
+
+    return {
+      message: 'Email verified successfully! You can now access all features.',
+    };
+  }
+
+  /**
+   * Resend verification email
+   * @param userId User ID
+   */
+  async resendVerificationEmail(userId: string): Promise<{ message: string }> {
+    // Check rate limiting (prevent spam)
+    const rateLimitKey = `email_verify_resend:${userId}`;
+    const recentlySent = await this.redisService.get(rateLimitKey);
+
+    if (recentlySent) {
+      throw new HttpException(
+        'Verification email was recently sent. Please wait a few minutes before requesting another.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    await this.sendVerificationEmail(userId);
+
+    // Set rate limit (5 minutes)
+    await this.redisService.setWithExpiry(rateLimitKey, '1', 300);
+
+    return {
+      message: 'Verification email sent successfully. Please check your inbox.',
+    };
   }
 }
