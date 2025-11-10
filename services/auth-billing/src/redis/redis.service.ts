@@ -103,4 +103,11 @@ export class RedisService implements OnModuleDestroy {
   async del(key: string): Promise<void> {
     await this.client.del(key);
   }
+
+  /**
+   * Set value with expiration
+   */
+  async setWithExpiry(key: string, value: string, ttlSeconds: number): Promise<void> {
+    await this.client.set(key, value, 'EX', ttlSeconds);
+  }
 }

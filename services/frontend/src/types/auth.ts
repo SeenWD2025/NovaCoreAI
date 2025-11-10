@@ -3,6 +3,7 @@
 export interface User {
   id: string;
   email: string;
+  email_verified?: boolean;
   role: 'student' | 'subscriber' | 'admin';
   subscription_tier: 'free_trial' | 'basic' | 'pro';
   trial_ends_at?: string;

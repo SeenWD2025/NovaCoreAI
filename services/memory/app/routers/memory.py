@@ -25,7 +25,14 @@ from app.redis_client import redis_client
 from app.config import settings
 from app.utils.storage_calculator import storage_calculator
 from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
+from app.metrics import (
+    memory_storage_total,
+    memory_retrieval_total,
+    memory_search_total,
+    vector_search_latency_seconds,
+)
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +95,9 @@ async def store_memory(
         if request.tier == MemoryTier.ITM:
             redis_client.store_itm(user_id, memory.id, 1)
         
+        # Track metric
+        memory_storage_total.labels(tier=request.tier.value, user_id=user_id).inc()
+        
         logger.info(f"Stored memory {memory.id} for user {user_id} in tier {request.tier}")
         
         return memory
@@ -120,6 +130,9 @@ async def get_memory(
         # If ITM, increment access count in Redis
         if memory.tier == "itm":
             redis_client.increment_itm_access(user_id, memory_id)
+        
+        # Track metric
+        memory_retrieval_total.labels(tier=memory.tier, user_id=user_id).inc()
         
         return memory
         
@@ -175,6 +188,9 @@ async def search_memories(
     Results are ranked by cosine similarity.
     """
     try:
+        # Track search latency
+        start_time = time.time()
+        
         memories = memory_service.search_memories(
             db,
             user_id,
@@ -183,6 +199,13 @@ async def search_memories(
             request.tier,
             request.min_confidence
         )
+        
+        # Record latency
+        latency = time.time() - start_time
+        vector_search_latency_seconds.observe(latency)
+        
+        # Track metric
+        memory_search_total.labels(user_id=user_id).inc()
         
         return SearchResultsResponse(
             results=memories,
