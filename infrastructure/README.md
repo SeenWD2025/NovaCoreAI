@@ -297,7 +297,7 @@ SSL_EMAIL="admin@novacore.ai"
 
 # LLM
 OLLAMA_URL="http://[gpu_private_ip]:11434"
-LLM_MODEL="mistral:7b-instruct-q4"
+LLM_MODEL="mistral:instruct"
 GPU_ENABLED="true"
 
 # Observability

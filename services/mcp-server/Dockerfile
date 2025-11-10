@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy manifests
-COPY Cargo.toml Cargo.lock ./
+# Copy manifest (Cargo.lock may not exist in dev)
+COPY Cargo.toml ./
 
 # Copy source code
 COPY src ./src

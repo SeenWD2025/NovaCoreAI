@@ -1,31 +1,21 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+## Development-focused Dockerfile
+## The docker-compose.yml maps port 5173 and mounts the source directory.
+## This image runs the Vite dev server for live reload instead of a static nginx build.
+
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Install dependencies first for better layer caching
 COPY package*.json ./
+RUN npm install
 
-# Install dependencies
-RUN npm ci
-
-# Copy source files
+# Copy the rest of the source
 COPY . .
 
-# Build the application
-RUN npm run build
+# Expose Vite dev server port
+EXPOSE 5173
 
-# Stage 2: Production
-FROM nginx:alpine
-
-# Copy built files from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Expose port
-EXPOSE 80
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Run Vite dev server; --host allows access from Docker host
+CMD ["npm", "run", "dev", "--", "--host"]

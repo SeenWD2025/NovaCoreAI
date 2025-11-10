@@ -204,7 +204,7 @@ Get all chat sessions for the current user.
       "id": "uuid",
       "user_id": "uuid",
       "status": "active",
-      "model_name": "mistral:7b-instruct-q4",
+  "model_name": "mistral:instruct",
       "created_at": "2024-01-01T00:00:00Z",
       "ended_at": null
     }

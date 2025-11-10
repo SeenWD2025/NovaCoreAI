@@ -56,7 +56,7 @@
    ```bash
    export DATABASE_URL="postgresql://noble:changeme@localhost:5432/noble_novacore"
    export OLLAMA_URL="http://localhost:11434"
-   export LLM_MODEL="mistral:7b-instruct-q4"
+  export LLM_MODEL="mistral:instruct"
    ```
 
 3. Run the service:
@@ -115,7 +115,7 @@ Environment variables:
 - `PORT` - Service port (default: 8000)
 - `DATABASE_URL` - PostgreSQL connection string
 - `OLLAMA_URL` - Ollama API URL
-- `LLM_MODEL` - Model name (default: mistral:7b-instruct-q4)
+- `LLM_MODEL` - Model name (default: mistral:instruct)
 - `GPU_ENABLED` - Enable GPU detection (default: false)
 - `FREE_TIER_TOKENS_DAY` - Free tier daily token limit
 - `BASIC_TIER_TOKENS_DAY` - Basic tier daily token limit

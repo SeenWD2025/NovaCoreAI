@@ -32,6 +32,36 @@ services:
       timeout: 3s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: noble-ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_MODELS=/root/.ollama
+      - OLLAMA_KEEP_ALIVE=24h
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    command: ["serve"]
+    restart: unless-stopped
+
+  ollama-loader:
+    image: ollama/ollama:latest
+    container_name: noble-ollama-loader
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: ["pull", "mistral:instruct"]
+    restart: "no"
+
   gateway:
     build:
       context: ./services/gateway
@@ -59,6 +89,7 @@ services:
     volumes:
       - ./services/gateway:/app
       - /app/node_modules
+    command: sh -c "npm install && npm run dev"
 
   # Service stubs - These are minimal implementations showing architecture
   # Full implementations will be added in their respective phases
@@ -100,8 +131,8 @@ services:
     environment:
       - PORT=8000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
-      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
-      - LLM_MODEL=${LLM_MODEL:-mistral:7b-instruct-q4}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+      - LLM_MODEL=${LLM_MODEL:-mistral:instruct}
       - GPU_ENABLED=${GPU_ENABLED:-false}
       - FREE_TIER_TOKENS_DAY=${FREE_TIER_TOKENS_DAY:-1000}
       - BASIC_TIER_TOKENS_DAY=${BASIC_TIER_TOKENS_DAY:-50000}
@@ -119,6 +150,8 @@ services:
         condition: service_healthy
       memory:
         condition: service_started
+      ollama:
+        condition: service_healthy
   
   memory:
     build:
@@ -312,3 +345,4 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  ollama_models:

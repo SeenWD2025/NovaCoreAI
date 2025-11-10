@@ -69,8 +69,8 @@ SERVICE_JWT_SECRET=your_service_jwt_secret_change_in_production
 SERVICE_TOKEN_EXPIRES_IN=24h
 
 # LLM Configuration
-OLLAMA_URL=http://host.docker.internal:11434
-LLM_MODEL=mistral:7b-instruct-q4
+OLLAMA_URL=http://ollama:11434
+LLM_MODEL=mistral:instruct
 GPU_ENABLED=false
 
 # Stripe (optional for development)
@@ -87,10 +87,10 @@ STRIPE_WEBHOOK_SECRET=whsec_xxx
 curl -fsSL https://ollama.ai/install.sh | sh
 
 # Pull Mistral 7B model
-ollama pull mistral:7b-instruct-q4
+docker compose exec ollama ollama pull mistral:instruct
 
 # Verify it's running
-ollama list
+docker compose exec ollama ollama list
 ```
 
 ### 4. Start Services
@@ -303,10 +303,10 @@ docker exec -it noble-memory python -c "from sentence_transformers import Senten
 
 ```bash
 # Test Ollama from container
-docker exec -it noble-intelligence curl http://host.docker.internal:11434/api/tags
+docker compose exec intelligence curl http://ollama:11434/api/tags
 
 # Verify model is loaded
-ollama list
+docker compose exec ollama ollama list
 ```
 
 ### Database Connection Issues

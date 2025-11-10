@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     database_url: str = os.getenv("DATABASE_URL", "postgresql://noble:changeme@localhost:5432/noble_novacore")
     
     # LLM Configuration
-    llm_model: str = os.getenv("LLM_MODEL", "mistral:7b-instruct-q4")
+    llm_model: str = os.getenv("LLM_MODEL", "mistral:instruct")
     ollama_url: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
     gpu_enabled: bool = os.getenv("GPU_ENABLED", "false").lower() == "true"
     

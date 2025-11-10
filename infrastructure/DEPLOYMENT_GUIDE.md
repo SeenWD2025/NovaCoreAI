@@ -199,7 +199,7 @@ SSL_EMAIL="admin@novacore.ai"
 
 # LLM Configuration
 OLLAMA_URL="http://[gpu_server_private_ip]:11434"
-LLM_MODEL="mistral:7b-instruct-q4"
+LLM_MODEL="mistral:instruct"
 GPU_ENABLED="true"
 
 # Observability
@@ -242,10 +242,10 @@ nvidia-smi
 curl -fsSL https://ollama.ai/install.sh | sh
 
 # Pull models
-ollama pull mistral:7b-instruct-q4
+docker compose exec ollama ollama pull mistral:instruct
 
 # Verify
-ollama list
+docker compose exec ollama ollama list
 ```
 
 ### 5.4 Configure Ollama Service

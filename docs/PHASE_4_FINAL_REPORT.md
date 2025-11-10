@@ -346,7 +346,7 @@ Result: PASS - Authentication enforced
 PORT=8000
 DATABASE_URL=postgresql://...
 OLLAMA_URL=http://localhost:11434
-LLM_MODEL=mistral:7b-instruct-q4
+LLM_MODEL=mistral:instruct
 GPU_ENABLED=false
 FREE_TIER_TOKENS_DAY=1000
 BASIC_TIER_TOKENS_DAY=50000
@@ -576,7 +576,7 @@ curl -X GET http://localhost:8000/chat/sessions \
 ### For Production
 
 1. Install Ollama
-2. Pull Mistral model: `ollama pull mistral:7b-instruct-q4`
+2. Pull Mistral model: `docker compose exec ollama ollama pull mistral:instruct`
 3. Configure environment variables
 4. Deploy with Docker Compose
 5. Monitor health endpoint

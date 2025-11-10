@@ -2,11 +2,12 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Copy everything including vendor directory
+# Copy source
 COPY . .
 
-# Build the application using vendored dependencies
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -a -installsuffix cgo -o main .
+# Download modules and build (avoid -mod=vendor since vendor not synced)
+RUN go mod download && \
+	CGO_ENABLED=0 GOOS=linux go build -o main .
 
 # Final stage - use scratch for minimal size since we have static binary
 FROM scratch

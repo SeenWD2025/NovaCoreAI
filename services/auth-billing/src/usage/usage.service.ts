@@ -14,7 +14,7 @@ interface TierLimits {
   agentMinutesMonth: number;
 }
 
-interface UsageStats {
+export interface UsageStats {
   userId: string;
   period: string;
   breakdown: UsageBreakdown[];
@@ -354,9 +354,9 @@ export class UsageService {
       storage: {
         used: storageUsage.used,
         limit: storageUsage.limit,
-        usedHuman: storageUsage.usedHuman,
-        limitHuman: storageUsage.limitHuman,
-        percentage: storageUsage.percentageUsed,
+        usedHuman: storageUsage.humanReadable,
+        limitHuman: storageUsage.limit === -1 ? 'unlimited' : this.bytesToHuman(storageUsage.limit),
+        percentage: storageUsage.percentage,
       },
       resetsAt: new Date().setUTCHours(24, 0, 0, 0), // Midnight UTC tomorrow
     };

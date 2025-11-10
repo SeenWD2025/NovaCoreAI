@@ -48,6 +48,7 @@ Services will be available at:
 - **Policy Service**: http://localhost:4000
 - **NGS Curriculum**: http://localhost:9000
 - **Frontend**: http://localhost:5173
+- **Ollama (LLM runtime)**: http://localhost:11434
 - **PostgreSQL**: localhost:5432
 - **Redis**: localhost:6379
 
@@ -235,8 +236,8 @@ DATABASE_URL=postgresql://noble:changeme@postgres:5432/noble_novacore
 REDIS_URL=redis://redis:6379
 
 # LLM
-LLM_MODEL=mistral:7b-instruct-q4
-OLLAMA_URL=http://host.docker.internal:11434
+LLM_MODEL=mistral:instruct
+OLLAMA_URL=http://ollama:11434
 
 # Limits
 FREE_TIER_TOKENS_DAY=1000
@@ -317,13 +318,10 @@ docker-compose logs memory
 
 ### LLM Not Responding
 
-Make sure Ollama is running and the model is pulled:
+The dockerized Ollama service should auto-load the `mistral:instruct` model on first start. If you need to refresh it manually:
 
 ```bash
-# On host machine
-ollama pull mistral:7b-instruct-q4
-
-# Check Ollama is accessible
+docker compose exec ollama ollama pull mistral:instruct
 curl http://localhost:11434/api/tags
 ```
 
