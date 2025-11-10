@@ -14,6 +14,7 @@ from app.models.schemas import (
     PolicyAction
 )
 from app.services.policy_service import policy_service
+from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,8 @@ router = APIRouter(prefix="/policy", tags=["policy"])
 @router.post("/validate", response_model=ValidationResponse)
 async def validate_content(
     request: ValidateContentRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """
     Validate content against constitutional policies.
@@ -60,7 +62,8 @@ async def validate_content(
 @router.post("/validate-alignment", response_model=AlignmentResponse)
 async def validate_alignment(
     request: ValidateAlignmentRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """
     Validate alignment with constitutional principles.

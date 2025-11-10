@@ -4,11 +4,24 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 import uuid
+import os
 
 from app.celery_app import celery_app
 from app.config import settings
+from app.utils.service_auth import generate_service_token
 
 logger = logging.getLogger(__name__)
+
+# Generate service token for reflection worker
+SERVICE_TOKEN = None
+try:
+    if os.getenv("SERVICE_JWT_SECRET"):
+        SERVICE_TOKEN = generate_service_token("reflection-worker")
+        logger.info("Reflection worker service token generated")
+    else:
+        logger.warning("SERVICE_JWT_SECRET not set. Service-to-service auth disabled.")
+except Exception as e:
+    logger.error(f"Failed to generate service token: {e}")
 
 
 @celery_app.task(name="reflect_on_interaction", bind=True, max_retries=3)
@@ -112,13 +125,18 @@ def validate_alignment_with_policy(
         Alignment validation result or None on failure
     """
     try:
+        headers = {}
+        if SERVICE_TOKEN:
+            headers["X-Service-Token"] = SERVICE_TOKEN
+            
         with httpx.Client(timeout=30.0) as client:
             response = client.post(
                 f"{settings.policy_service_url}/policy/validate-alignment",
                 json={
                     "input_context": input_text,
                     "output_response": output_text
-                }
+                },
+                headers=headers
             )
             
             if response.status_code == 200:
@@ -207,10 +225,14 @@ def store_reflection(
     """
     try:
         # Store as a memory with type "reflection"
+        headers = {"X-User-Id": user_id}
+        if SERVICE_TOKEN:
+            headers["X-Service-Token"] = SERVICE_TOKEN
+            
         with httpx.Client(timeout=30.0) as client:
             response = client.post(
                 f"{settings.memory_service_url}/memory/store",
-                headers={"X-User-Id": user_id},
+                headers=headers,
                 json={
                     "session_id": session_id,
                     "type": "reflection",

@@ -303,4 +303,96 @@ export class UsageService {
       [userId, resourceType, amount, JSON.stringify(metadata || {})],
     );
   }
+
+  /**
+   * Get quota information - current usage and limits
+   */
+  async getQuotaInfo(userId: string): Promise<any> {
+    const tier = await this.getUserTier(userId);
+    const limits = this.getTierLimits(tier);
+    
+    // Get current token usage
+    const tokenUsage = await this.getDailyTokenUsage(userId);
+    
+    // Get current storage usage
+    const storageUsage = await this.getStorageUsage(userId);
+    
+    // Get message count for today
+    const messageResult = await this.db.query(
+      `SELECT COALESCE(SUM(amount), 0) as total
+       FROM usage_ledger
+       WHERE user_id = $1
+       AND resource_type = 'messages'
+       AND timestamp >= CURRENT_DATE`,
+      [userId],
+    );
+    const messagesUsed = parseInt(messageResult.rows[0]?.total || '0');
+    
+    // Calculate message limit based on tier
+    const messageLimits = {
+      free_trial: 100,
+      basic: 5000,
+      pro: -1, // Unlimited
+    };
+    const messagesLimit = messageLimits[tier] || messageLimits.free_trial;
+    
+    return {
+      userId,
+      tier,
+      tokens: {
+        used: tokenUsage.used,
+        limit: limits.llmTokensDay,
+        remaining: limits.llmTokensDay === -1 ? -1 : limits.llmTokensDay - tokenUsage.used,
+        percentage: limits.llmTokensDay === -1 ? 0 : (tokenUsage.used / limits.llmTokensDay) * 100,
+      },
+      messages: {
+        used: messagesUsed,
+        limit: messagesLimit,
+        remaining: messagesLimit === -1 ? -1 : messagesLimit - messagesUsed,
+        percentage: messagesLimit === -1 ? 0 : (messagesUsed / messagesLimit) * 100,
+      },
+      storage: {
+        used: storageUsage.used,
+        limit: storageUsage.limit,
+        usedHuman: storageUsage.usedHuman,
+        limitHuman: storageUsage.limitHuman,
+        percentage: storageUsage.percentageUsed,
+      },
+      resetsAt: new Date().setUTCHours(24, 0, 0, 0), // Midnight UTC tomorrow
+    };
+  }
+
+  /**
+   * Get usage history for the last N days
+   */
+  async getUsageHistory(userId: string, days: number = 30): Promise<any> {
+    const result = await this.db.query(
+      `SELECT 
+        DATE(timestamp) as date,
+        resource_type,
+        SUM(amount) as total
+       FROM usage_ledger
+       WHERE user_id = $1
+       AND timestamp >= NOW() - INTERVAL '${days} days'
+       GROUP BY DATE(timestamp), resource_type
+       ORDER BY date DESC, resource_type`,
+      [userId],
+    );
+
+    // Group by date
+    const history: Record<string, any> = {};
+    for (const row of result.rows) {
+      const dateStr = row.date.toISOString().split('T')[0];
+      if (!history[dateStr]) {
+        history[dateStr] = { date: dateStr };
+      }
+      history[dateStr][row.resource_type] = parseInt(row.total);
+    }
+
+    return {
+      userId,
+      days,
+      history: Object.values(history),
+    };
+  }
 }

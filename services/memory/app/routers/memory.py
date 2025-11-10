@@ -24,6 +24,7 @@ from app.services.usage_service import usage_service
 from app.redis_client import redis_client
 from app.config import settings
 from app.utils.storage_calculator import storage_calculator
+from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
 import logging
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ async def store_memory(
     request: StoreMemoryRequest,
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency),
     x_user_tier: Optional[str] = Header("free_trial")
 ):
     """
@@ -101,7 +103,8 @@ async def store_memory(
 async def get_memory(
     memory_id: str,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """
     Retrieve a specific memory by ID.
@@ -162,7 +165,8 @@ async def list_memories(
 async def search_memories(
     request: SearchMemoriesRequest,
     user_id: str = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """
     Semantic search for memories using vector similarity.

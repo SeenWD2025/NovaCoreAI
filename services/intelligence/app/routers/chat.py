@@ -16,11 +16,16 @@ from app.models.schemas import (
 from app.services.ollama_service import ollama_service
 from app.services.session_service import SessionService
 from app.services.integration_service import integration_service
+from app.services.usage_service import usage_service
 from app.utils.token_counter import token_counter
+from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+# Security constants
+MAX_MESSAGE_LENGTH = 10000  # Maximum message length in characters
 
 
 def get_user_id(x_user_id: Optional[str] = Header(None)) -> UUID:
@@ -64,7 +69,8 @@ def check_token_limit(db: Session, user_id: UUID, required_tokens: int, tier: st
 async def send_message(
     message: ChatMessage,
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """Send a message and get a response (non-streaming)."""
     start_time = time.time()
@@ -72,6 +78,13 @@ async def send_message(
     # Validate message content
     if not message.message or not message.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    # Validate message length (input validation security)
+    if len(message.message) > MAX_MESSAGE_LENGTH:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Message too long. Maximum {MAX_MESSAGE_LENGTH} characters allowed."
+        )
     
     # Check if Ollama is ready
     if not ollama_service.is_ready:
@@ -114,8 +127,19 @@ async def send_message(
     # Get user's subscription tier
     user_tier = await integration_service.get_user_tier(user_id)
     
-    # Check token limits based on actual tier
-    check_token_limit(db, user_id, estimated_tokens, user_tier)
+    # Check quota BEFORE processing message
+    has_quota, quota_msg = usage_service.check_quota(
+        db, user_id, user_tier, "llm_tokens", estimated_tokens
+    )
+    if not has_quota:
+        raise HTTPException(status_code=429, detail=quota_msg)
+    
+    # Also check message quota
+    has_message_quota, message_quota_msg = usage_service.check_quota(
+        db, user_id, user_tier, "messages", 1
+    )
+    if not has_message_quota:
+        raise HTTPException(status_code=429, detail=message_quota_msg)
     
     # Generate response
     system_prompt = "You are Noble NovaCoreAI, an ethical AI assistant focused on truth, wisdom, and human flourishing. Provide thoughtful, helpful responses aligned with the Reclaimer Ethos."
@@ -142,6 +166,15 @@ async def send_message(
             "session_id": str(session_id),
             "model": settings.llm_model,
             "latency_ms": latency_ms
+        }
+    )
+    
+    # Record message count for quota enforcement
+    SessionService.record_usage_ledger(
+        db, user_id, "messages", 1,
+        metadata={
+            "session_id": str(session_id),
+            "message_length": len(message.message)
         }
     )
     
@@ -177,7 +210,8 @@ async def send_message(
 async def stream_message(
     message: ChatMessage,
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """Send a message and stream the response."""
     start_time = time.time()
@@ -185,6 +219,13 @@ async def stream_message(
     # Validate message content
     if not message.message or not message.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    # Validate message length (input validation security)
+    if len(message.message) > MAX_MESSAGE_LENGTH:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Message too long. Maximum {MAX_MESSAGE_LENGTH} characters allowed."
+        )
     
     # Check if Ollama is ready
     if not ollama_service.is_ready:
@@ -227,8 +268,19 @@ async def stream_message(
     # Get user's subscription tier
     user_tier = await integration_service.get_user_tier(user_id)
     
-    # Check token limits based on actual tier
-    check_token_limit(db, user_id, estimated_tokens, user_tier)
+    # Check quota BEFORE processing message
+    has_quota, quota_msg = usage_service.check_quota(
+        db, user_id, user_tier, "llm_tokens", estimated_tokens
+    )
+    if not has_quota:
+        raise HTTPException(status_code=429, detail=quota_msg)
+    
+    # Also check message quota
+    has_message_quota, message_quota_msg = usage_service.check_quota(
+        db, user_id, user_tier, "messages", 1
+    )
+    if not has_message_quota:
+        raise HTTPException(status_code=429, detail=message_quota_msg)
     
     async def generate():
         """Generate streaming response."""
@@ -267,6 +319,15 @@ async def stream_message(
                         "model": settings.llm_model,
                         "latency_ms": latency_ms,
                         "streaming": True
+                    }
+                )
+                
+                # Record message count for quota enforcement
+                SessionService.record_usage_ledger(
+                    db, user_id, "messages", 1,
+                    metadata={
+                        "session_id": str(session_id),
+                        "message_length": len(message.message)
                     }
                 )
             except Exception as e:
@@ -326,7 +387,8 @@ async def stream_message(
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_sessions(
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """Get all sessions for the current user."""
     sessions_data = SessionService.get_user_sessions(db, user_id, limit=50)
@@ -350,7 +412,8 @@ async def get_sessions(
 async def get_history(
     session_id: UUID,
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """Get conversation history for a session."""
     # Verify session belongs to user
@@ -388,7 +451,8 @@ async def get_history(
 async def end_session(
     session_id: UUID,
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """End a chat session."""
     # Verify session belongs to user

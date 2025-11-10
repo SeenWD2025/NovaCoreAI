@@ -1,17 +1,33 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { config } from 'dotenv';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
+import { generateServiceToken } from './middleware/service-auth';
 
 config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET || '';
+
+// Generate service token for Gateway (cache it and regenerate when needed)
+let gatewayServiceToken = '';
+try {
+  if (SERVICE_JWT_SECRET) {
+    gatewayServiceToken = generateServiceToken('gateway');
+    console.log('Gateway service token generated successfully');
+  } else {
+    console.warn('WARNING: SERVICE_JWT_SECRET not set. Service-to-service auth disabled.');
+  }
+} catch (error) {
+  console.error('Failed to generate gateway service token:', error);
+}
 
 // Service URLs
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3001';
@@ -22,6 +38,27 @@ const NGS_SERVICE_URL = process.env.NGS_SERVICE_URL || 'http://localhost:9000';
 
 // Middleware
 app.use(cors());
+
+// Security headers using helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+    },
+  },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
+
+// Request size limits (security)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -141,6 +178,10 @@ app.use(
       '^/api/billing': '/billing',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
       // Forward user info to billing service
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
@@ -169,6 +210,11 @@ app.use(
       '^/api/usage': '/usage',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
@@ -196,6 +242,11 @@ app.use(
       '^/api/chat': '/chat',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
@@ -223,6 +274,11 @@ app.use(
       '^/api/memory': '/memory',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
@@ -253,6 +309,11 @@ app.use(
       '^/api/ngs': '/ngs',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
@@ -281,6 +342,11 @@ app.use(
       '^/api/mcp': '/mcp',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
