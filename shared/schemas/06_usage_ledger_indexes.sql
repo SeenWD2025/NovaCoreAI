@@ -17,9 +17,10 @@ CREATE INDEX IF NOT EXISTS idx_usage_ledger_resource
 -- Composite index for efficient quota checks
 -- Optimizes: SELECT SUM(amount) FROM usage_ledger 
 --           WHERE user_id = ? AND resource_type = ? AND DATE(timestamp) = CURRENT_DATE
+-- Note: Removed partial index with CURRENT_DATE as it requires IMMUTABLE function
+-- Regular composite index still optimizes quota queries effectively
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_quota_check 
-  ON usage_ledger(user_id, resource_type, timestamp DESC) 
-  WHERE timestamp >= CURRENT_DATE;
+  ON usage_ledger(user_id, resource_type, timestamp DESC);
 
 -- Add comments for documentation
 COMMENT ON TABLE usage_ledger IS 'Tracks resource usage (tokens, messages, API calls) per user for quota enforcement';
