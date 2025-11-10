@@ -48,6 +48,7 @@ services:
       - POLICY_SERVICE_URL=http://noble-spirit:4000
       - NGS_SERVICE_URL=http://ngs-curriculum:9000
       - MCP_SERVICE_URL=http://mcp-server:7000
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     ports:
       - "5000:5000"
     depends_on:
@@ -69,6 +70,9 @@ services:
     environment:
       - PORT=3001
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
     ports:
       - "3001:3001"
     depends_on:
@@ -94,6 +98,7 @@ services:
       - MEMORY_SERVICE_URL=http://memory:8001
       - CELERY_BROKER_URL=redis://redis:6379/2
       - ENABLE_REFLECTION=${ENABLE_REFLECTION:-true}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     ports:
       - "8000:8000"
     depends_on:
@@ -112,6 +117,7 @@ services:
       - PORT=8001
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - REDIS_URL=redis://redis:6379
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     ports:
       - "8001:8001"
     depends_on:
@@ -127,6 +133,7 @@ services:
     environment:
       - PORT=9000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     ports:
       - "9000:9000"
     depends_on:
@@ -155,6 +162,7 @@ services:
     environment:
       - PORT=4000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     ports:
       - "4000:4000"
     depends_on:
@@ -172,6 +180,7 @@ services:
       - MEMORY_SERVICE_URL=http://memory:8001
       - POLICY_SERVICE_URL=http://noble-spirit:4000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     depends_on:
       redis:
         condition: service_healthy
@@ -189,6 +198,7 @@ services:
       - MEMORY_SERVICE_URL=http://memory:8001
       - POLICY_SERVICE_URL=http://noble-spirit:4000
       - LTM_PROMOTION_THRESHOLD=${LTM_PROMOTION_THRESHOLD:-3}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     depends_on:
       postgres:
         condition: service_healthy
@@ -202,6 +212,7 @@ services:
       - MEMORY_SERVICE_URL=http://memory:8001
       - INTELLIGENCE_SERVICE_URL=http://intelligence:8000
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
       - RUST_LOG=info
     ports:
       - "7000:7000"
