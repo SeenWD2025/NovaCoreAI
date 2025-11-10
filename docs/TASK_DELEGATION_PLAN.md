@@ -80,19 +80,19 @@ Services currently trust network-level isolation without cryptographic verificat
 #### Tasks Checklist
 
 **Cloud and Cybersecurity Specialist:**
-- [ ] Design service-to-service JWT token specification
+- [x] Design service-to-service JWT token specification
   - Token payload structure (service identity, permissions, expiration)
   - Key management strategy (shared secret vs. asymmetric keys)
   - Token rotation policy (24-hour expiration recommended)
-- [ ] Create service authentication documentation
+- [x] Create service authentication documentation
   - Token generation process
   - Token verification requirements
   - Security best practices for services
-- [ ] Define service permission matrix
+- [x] Define service permission matrix
   - Which services can call which endpoints
   - Read vs. write permissions
   - Admin vs. standard service roles
-- [ ] Security testing plan for service auth
+- [x] Security testing plan for service auth
   - Test invalid tokens rejected
   - Test expired tokens rejected
   - Test unauthorized service calls blocked
@@ -331,13 +331,13 @@ Webhook handler exists but doesn't verify Stripe signatures, allowing potential 
   - Test webhook delivery
 
 **Cloud and Cybersecurity Specialist:**
-- [ ] Security review of webhook implementation (1 hour)
+- [x] Security review of webhook implementation (1 hour)
   - Verify signature verification is correct
   - Check for replay attack protection
   - Verify idempotency (duplicate events handled)
   - Test with invalid signatures
   - Test with tampered payloads
-- [ ] Document webhook security (30 minutes)
+- [x] Document webhook security (30 minutes)
   - Signature verification process
   - Secret management
   - Monitoring and alerting
@@ -369,13 +369,13 @@ Several security gaps identified: no email verification, no login throttling, mi
 #### Tasks Checklist
 
 **Cloud and Cybersecurity Specialist (Email Verification):**
-- [ ] Design email verification flow (1 hour)
+- [x] Design email verification flow (1 hour)
   - Generate verification token on registration
   - Send verification email with link
   - Verify token on callback
   - Mark email as verified
   - Require verification for certain features
-- [ ] Security requirements for tokens (1 hour)
+- [x] Security requirements for tokens (1 hour)
   - 32-byte random token (crypto.randomBytes)
   - Single-use tokens (delete after verification)
   - Expiration (24 hours)
@@ -412,7 +412,7 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Hide after verification
 
 **Cloud and Cybersecurity Specialist (Login Throttling):**
-- [ ] Design login throttling strategy (30 minutes)
+- [x] Design login throttling strategy (30 minutes)
   - 5 failed attempts per email per 15 minutes
   - Use Redis for tracking
   - Exponential backoff after repeated failures
@@ -433,7 +433,7 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Test concurrent attempts handled correctly
 
 **Cloud and Cybersecurity Specialist (Security Headers):**
-- [ ] Define required security headers (30 minutes)
+- [x] Define required security headers (30 minutes)
   - Content-Security-Policy
   - X-Frame-Options: DENY
   - X-Content-Type-Options: nosniff
@@ -452,7 +452,7 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Configure for NestJS application
 
 **Cloud and Cybersecurity Specialist (Input Validation):**
-- [ ] Define input validation rules (1 hour)
+- [x] Define input validation rules (1 hour)
   - Maximum message length (10,000 characters)
   - Maximum request size (10MB)
   - Allowed characters (block malicious patterns)
