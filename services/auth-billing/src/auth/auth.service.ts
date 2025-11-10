@@ -1,15 +1,20 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { DatabaseService } from '../database/database.service';
+import { RedisService } from '../redis/redis.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly MAX_LOGIN_ATTEMPTS = 5;
+  private readonly LOCKOUT_DURATION_MINUTES = 15;
+
   constructor(
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
+    private readonly redisService: RedisService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -62,12 +67,30 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
+    // Check if account is locked due to too many failed attempts
+    const attempts = await this.redisService.getLoginAttempts(email);
+    if (attempts >= this.MAX_LOGIN_ATTEMPTS) {
+      const ttl = await this.redisService.getLoginAttemptsTTL(email);
+      const minutesRemaining = Math.ceil(ttl / 60);
+      
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: `Too many failed login attempts. Account is locked. Please try again in ${minutesRemaining} minute(s).`,
+          retryAfter: ttl,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const result = await this.db.query(
       'SELECT id, email, password_hash, role, subscription_tier, trial_ends_at FROM users WHERE email = $1',
       [email],
     );
 
     if (result.rows.length === 0) {
+      // Increment failed attempts even for non-existent users to prevent enumeration
+      await this.redisService.incrementLoginAttempts(email);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -75,8 +98,28 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      // Increment failed attempts
+      const newAttempts = await this.redisService.incrementLoginAttempts(email);
+      
+      if (newAttempts >= this.MAX_LOGIN_ATTEMPTS) {
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.TOO_MANY_REQUESTS,
+            message: `Too many failed login attempts. Account is locked for ${this.LOCKOUT_DURATION_MINUTES} minutes.`,
+            retryAfter: this.LOCKOUT_DURATION_MINUTES * 60,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      
+      const remainingAttempts = this.MAX_LOGIN_ATTEMPTS - newAttempts;
+      throw new UnauthorizedException(
+        `Invalid credentials. ${remainingAttempts} attempt(s) remaining before account lockout.`,
+      );
     }
+
+    // Successful login - reset attempt counter
+    await this.redisService.resetLoginAttempts(email);
 
     const { accessToken, refreshToken } = await this.generateTokens(user.id, user.email, user.role);
 
