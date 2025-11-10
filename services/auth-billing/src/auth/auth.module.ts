@@ -3,6 +3,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { ServiceAuthService } from './service-auth.service';
+import { ServiceAuthController } from './service-auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
 import { RolesGuard } from './roles.guard';
@@ -15,8 +17,8 @@ import { RolesGuard } from './roles.guard';
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '15m' },
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, LocalStrategy, RolesGuard],
-  exports: [AuthService, RolesGuard],
+  controllers: [AuthController, ServiceAuthController],
+  providers: [AuthService, ServiceAuthService, JwtStrategy, LocalStrategy, RolesGuard],
+  exports: [AuthService, ServiceAuthService, RolesGuard],
 })
 export class AuthModule {}
