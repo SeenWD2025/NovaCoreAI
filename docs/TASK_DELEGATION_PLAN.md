@@ -99,12 +99,12 @@ Services currently trust network-level isolation without cryptographic verificat
   - Test token tampering detected
 
 **Full-Stack Specialist (Auth-Billing Service):**
-- [ ] Implement service token generation (4 hours)
+- [x] Implement service token generation (4 hours) ✅ COMPLETE
   - File: `services/auth-billing/src/auth/service-auth.service.ts`
   - Add `generateServiceToken(serviceName: string)` method
   - Add `verifyServiceToken(token: string)` method
   - Store SERVICE_JWT_SECRET in environment
-- [ ] Create service token renewal endpoint (2 hours)
+- [x] Create service token renewal endpoint (2 hours) ✅ COMPLETE
   - Endpoint: `POST /auth/service/refresh`
   - Automatic renewal before expiration
   - Logging for audit trail
@@ -114,12 +114,12 @@ Services currently trust network-level isolation without cryptographic verificat
   - Integration tests for renewal
 
 **Full-Stack Specialist (Gateway):**
-- [ ] Implement service auth middleware (4 hours)
+- [x] Implement service auth middleware (4 hours) ✅ COMPLETE
   - File: `services/gateway/src/middleware/service-auth.ts`
   - Validate X-Service-Token header on all service-to-service calls
   - Return 403 for invalid/missing tokens
   - Add service context to request for downstream use
-- [ ] Apply middleware to service routes (2 hours)
+- [x] Apply middleware to service routes (2 hours) ✅ COMPLETE
   - All `/api/intelligence/*` routes
   - All `/api/memory/*` routes
   - All `/api/policy/*` routes
@@ -130,27 +130,27 @@ Services currently trust network-level isolation without cryptographic verificat
   - Test expired tokens rejected
 
 **Full-Stack Specialist (Python Services):**
-- [ ] Create shared Python service auth module (6 hours)
+- [x] Create shared Python service auth module (6 hours) ✅ COMPLETE
   - File: `shared/python/service_auth.py`
   - `verify_service_token()` dependency injection
   - Token verification utility functions
   - Error handling for invalid tokens
-- [ ] Update Intelligence service (2 hours)
+- [x] Update Intelligence service (2 hours) ✅ COMPLETE
   - Apply `verify_service_token` dependency to all endpoints
   - Update outbound calls to include X-Service-Token
   - Test service-to-service communication
-- [ ] Update Memory service (2 hours)
+- [x] Update Memory service (2 hours) ✅ COMPLETE
   - Apply service token verification
   - Update integration with other services
   - Test memory storage and retrieval with tokens
-- [ ] Update Noble-Spirit Policy service (2 hours)
+- [x] Update Noble-Spirit Policy service (2 hours) ✅ COMPLETE
   - Apply service token verification
   - Secure policy validation endpoints
   - Test policy checks with authentication
-- [ ] Update Reflection worker (1 hour)
+- [x] Update Reflection worker (1 hour) ✅ COMPLETE
   - Add service token to async task calls
   - Test reflection task execution
-- [ ] Update Distillation worker (1 hour)
+- [x] Update Distillation worker (1 hour) ✅ COMPLETE
   - Add service token to scheduled tasks
   - Test distillation process
 
@@ -168,11 +168,11 @@ Services currently trust network-level isolation without cryptographic verificat
   - Secret rotation procedures
 
 **Acceptance Criteria:**
-- [ ] All services validate X-Service-Token header
-- [ ] Service tokens expire after 24 hours
-- [ ] Unauthorized calls return 403 with clear error message
+- [x] All services validate X-Service-Token header ✅ COMPLETE
+- [x] Service tokens expire after 24 hours ✅ COMPLETE
+- [x] Unauthorized calls return 403 with clear error message ✅ COMPLETE
 - [ ] Integration tests pass for cross-service calls
-- [ ] Service token renewal works automatically
+- [x] Service token renewal works automatically ✅ COMPLETE
 - [ ] Documentation complete
 - [ ] Security audit passed
 
@@ -190,21 +190,21 @@ Token counting is implemented but not persisted to the `usage_ledger` table. Thi
 #### Tasks Checklist
 
 **Full-Stack Specialist (Intelligence Service):**
-- [ ] Create UsageService class (3 hours)
+- [x] Create UsageService class (3 hours) ✅ COMPLETE
   - File: `services/intelligence/app/services/usage_service.py`
   - `record_usage(user_id, resource_type, amount, metadata)` method
   - `get_today_usage(user_id, resource_type)` method
   - `check_quota(user_id, tier, resource_type, requested_amount)` method
   - Database queries for usage_ledger table
   - Error handling and logging
-- [ ] Integrate usage recording into chat endpoint (2 hours)
+- [x] Integrate usage recording into chat endpoint (2 hours) ✅ COMPLETE
   - File: `services/intelligence/app/routers/chat.py`
   - Check quota BEFORE processing message
   - Count input and output tokens
   - Record token usage after response
   - Record message count
   - Return 429 if quota exceeded
-- [ ] Add usage recording to streaming endpoint (1 hour)
+- [x] Add usage recording to streaming endpoint (1 hour) ✅ COMPLETE
   - File: `services/intelligence/app/routers/chat.py`
   - Track tokens during streaming
   - Record final token count
@@ -215,18 +215,18 @@ Token counting is implemented but not persisted to the `usage_ledger` table. Thi
   - Test daily reset at midnight UTC
 
 **Full-Stack Specialist (Auth-Billing Service):**
-- [ ] Create usage statistics endpoint (3 hours)
+- [x] Create usage statistics endpoint (3 hours) ✅ COMPLETE
   - File: `services/auth-billing/src/usage/usage.controller.ts`
   - Endpoint: `GET /usage/quota`
   - Returns current usage and remaining quota
   - Returns tier limits
   - Calculate percentage used
-- [ ] Implement tier limit configuration (1 hour)
+- [x] Implement tier limit configuration (1 hour) ✅ COMPLETE
   - Define limits for free_trial, basic, pro tiers
   - Tokens per day
   - Messages per day
   - Make configurable via environment
-- [ ] Add usage history endpoint (2 hours)
+- [x] Add usage history endpoint (2 hours) ✅ COMPLETE
   - Endpoint: `GET /usage/history`
   - Return last 30 days usage
   - Group by day
@@ -256,12 +256,12 @@ Token counting is implemented but not persisted to the `usage_ledger` table. Thi
   - Dashboard for quota statistics
 
 **Acceptance Criteria:**
-- [ ] Token usage persisted to usage_ledger after every chat
-- [ ] Message count persisted to usage_ledger  
-- [ ] Quota checks enforce tier limits correctly
-- [ ] Usage resets daily at midnight UTC
-- [ ] API endpoint returns current usage
-- [ ] 429 errors returned when quota exceeded with helpful message
+- [x] Token usage persisted to usage_ledger after every chat ✅ COMPLETE
+- [x] Message count persisted to usage_ledger ✅ COMPLETE
+- [x] Quota checks enforce tier limits correctly ✅ COMPLETE
+- [x] Usage resets daily at midnight UTC ✅ COMPLETE
+- [x] API endpoint returns current usage ✅ COMPLETE
+- [x] 429 errors returned when quota exceeded with helpful message ✅ COMPLETE
 - [ ] Frontend displays quota information
 - [ ] Integration tests verify quota enforcement
 - [ ] Monitoring in place
@@ -280,21 +280,21 @@ Webhook handler exists but doesn't verify Stripe signatures, allowing potential 
 #### Tasks Checklist
 
 **Full-Stack Specialist:**
-- [ ] Implement Stripe webhook signature verification (2 hours)
+- [x] Implement Stripe webhook signature verification (2 hours) ✅ COMPLETE
   - File: `services/auth-billing/src/billing/stripe.service.ts`
   - Use `stripe.webhooks.constructEvent()` to verify signature
   - Get signature from `stripe-signature` header
   - Use STRIPE_WEBHOOK_SECRET from environment
   - Return 400 for invalid signatures
   - Log verification failures
-- [ ] Implement webhook event handlers (2 hours)
+- [x] Implement webhook event handlers (2 hours) ✅ COMPLETE
   - Handle `customer.subscription.created`
   - Handle `customer.subscription.updated`
   - Handle `customer.subscription.deleted`
   - Handle `invoice.payment_succeeded`
   - Handle `invoice.payment_failed`
   - Update database for each event type
-- [ ] Update webhook controller (1 hour)
+- [x] Update webhook controller (1 hour) ✅ COMPLETE
   - File: `services/auth-billing/src/billing/billing.controller.ts`
   - Configure raw body parser for webhook endpoint
   - Pass raw body and signature to service
@@ -312,7 +312,7 @@ Webhook handler exists but doesn't verify Stripe signatures, allowing potential 
   - File: `services/auth-billing/src/main.ts`
   - Add express.raw() middleware for `/billing/webhook` route
   - Ensure body available as Buffer
-- [ ] Add subscription tier mapping (1 hour)
+- [x] Add subscription tier mapping (1 hour) ✅ COMPLETE
   - Map Stripe price IDs to tier names
   - Update user tier on subscription events
   - Handle upgrades and downgrades
@@ -344,16 +344,16 @@ Webhook handler exists but doesn't verify Stripe signatures, allowing potential 
   - Incident response for failed webhooks
 
 **Acceptance Criteria:**
-- [ ] Webhook signature verification passes for valid events
-- [ ] Invalid signatures return 400 errors
-- [ ] Subscription creation updates user tier
-- [ ] Subscription update updates user tier
-- [ ] Subscription deletion downgrades user to free_trial
-- [ ] Payment events logged correctly
+- [x] Webhook signature verification passes for valid events ✅ COMPLETE
+- [x] Invalid signatures return 400 errors ✅ COMPLETE
+- [x] Subscription creation updates user tier ✅ COMPLETE
+- [x] Subscription update updates user tier ✅ COMPLETE
+- [x] Subscription deletion downgrades user to free_trial ✅ COMPLETE
+- [x] Payment events logged correctly ✅ COMPLETE
 - [ ] Tested with Stripe CLI successfully
-- [ ] All webhook events logged to database
+- [x] All webhook events logged to database ✅ COMPLETE
 - [ ] Documentation complete
-- [ ] Security review passed
+- [x] Security review passed ✅ COMPLETE
 
 ---
 
@@ -419,7 +419,7 @@ Several security gaps identified: no email verification, no login throttling, mi
   - CAPTCHA after 3 failed attempts (optional)
 
 **Full-Stack Specialist (Login Throttling):**
-- [ ] Implement login throttling in auth service (2 hours)
+- [x] Implement login throttling in auth service (2 hours) ✅ COMPLETE
   - File: `services/auth-billing/src/auth/auth.service.ts`
   - Check attempt count before login
   - Increment counter on failed login
@@ -442,7 +442,7 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Referrer-Policy
 
 **Full-Stack Specialist (Security Headers):**
-- [ ] Implement security headers in Gateway (1 hour)
+- [x] Implement security headers in Gateway (1 hour) ✅ COMPLETE
   - File: `services/gateway/src/index.ts`
   - Install helmet middleware
   - Configure security headers
@@ -460,15 +460,15 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Password strength requirements
 
 **Full-Stack Specialist (Input Validation):**
-- [ ] Implement message length validation (1 hour)
+- [x] Implement message length validation (1 hour) ✅ COMPLETE
   - File: `services/intelligence/app/routers/chat.py`
   - Check message length before processing
   - Return 400 if too long
   - Clear error message
-- [ ] Add request size limits (30 minutes)
+- [x] Add request size limits (30 minutes) ✅ COMPLETE
   - Gateway: `express.json({ limit: '10mb' })`
   - Gateway: `express.urlencoded({ limit: '10mb' })`
-- [ ] Add XSS prevention (1 hour)
+- [x] Add XSS prevention (1 hour) ✅ COMPLETE
   - Install bleach library
   - Sanitize user inputs
   - Strip HTML tags from chat messages
@@ -478,13 +478,13 @@ Several security gaps identified: no email verification, no login throttling, mi
 - [ ] Email verification flow works end-to-end
 - [ ] Verification emails sent successfully
 - [ ] Email verification required for full access
-- [ ] Login attempts limited to 5 per 15 minutes
-- [ ] Throttling resets after successful login
-- [ ] Security headers applied to all responses
-- [ ] HSTS header forces HTTPS
-- [ ] Request size limits enforced (10MB)
-- [ ] Message length validation active (10,000 chars max)
-- [ ] XSS prevention working
+- [x] Login attempts limited to 5 per 15 minutes ✅ COMPLETE
+- [x] Throttling resets after successful login ✅ COMPLETE
+- [x] Security headers applied to all responses ✅ COMPLETE
+- [x] HSTS header forces HTTPS ✅ COMPLETE
+- [x] Request size limits enforced (10MB) ✅ COMPLETE
+- [x] Message length validation active (10,000 chars max) ✅ COMPLETE
+- [x] XSS prevention working ✅ COMPLETE
 - [ ] Security audit passed
 - [ ] Documentation complete
 
@@ -504,13 +504,13 @@ Several security gaps identified: no email verification, no login throttling, mi
 #### Tasks Checklist
 
 **Full-Stack Specialist (Python Testing Setup):**
-- [ ] Set up pytest infrastructure (1 day)
+- [x] Set up pytest infrastructure (1 day) ✅ COMPLETE
   - Install pytest, pytest-asyncio, pytest-cov
   - Create test directory structure for each Python service
   - Create conftest.py with fixtures
   - Configure test database
   - Create mock fixtures for external services
-- [ ] Write Intelligence service tests (1 day)
+- [x] Write Intelligence service tests (1 day) ✅ STARTED
   - File: `services/intelligence/tests/test_chat.py`
   - Test successful message sending
   - Test quota enforcement
@@ -541,7 +541,7 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Test promotion logic
 
 **Full-Stack Specialist (Node.js Testing Setup):**
-- [ ] Set up Jest infrastructure (4 hours)
+- [x] Set up Jest infrastructure (4 hours) ✅ COMPLETE
   - Install jest, @types/jest, ts-jest
   - Configure Jest for TypeScript
   - Create test directory structure
@@ -553,7 +553,7 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Test service routing
   - Test WebSocket connections
   - Target: 70% coverage
-- [ ] Write Auth-Billing service tests (1 day)
+- [x] Write Auth-Billing service tests (1 day) ✅ STARTED
   - Test registration
   - Test login
   - Test refresh tokens
@@ -620,13 +620,13 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Identify performance bottlenecks
 
 **Acceptance Criteria:**
-- [ ] Pytest infrastructure set up for all Python services
-- [ ] Jest infrastructure set up for all Node.js services
-- [ ] Unit tests achieve ≥70% code coverage
+- [x] Pytest infrastructure set up for all Python services ✅ COMPLETE
+- [x] Jest infrastructure set up for all Node.js services ✅ COMPLETE
+- [ ] Unit tests achieve ≥70% code coverage (IN PROGRESS)
 - [ ] Integration tests verify critical flows
 - [ ] E2E tests verify user journeys
 - [ ] All tests pass in CI/CD
-- [ ] Test coverage reports generated
+- [x] Test coverage reports generated ✅ COMPLETE
 - [ ] Load testing completed with results documented
 - [ ] Tests run automatically on every PR
 - [ ] Documentation for running tests

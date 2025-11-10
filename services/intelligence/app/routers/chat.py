@@ -19,6 +19,7 @@ from app.services.integration_service import integration_service
 from app.services.usage_service import usage_service
 from app.utils.token_counter import token_counter
 from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
+from app.utils.sanitize import sanitize_message
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -79,12 +80,14 @@ async def send_message(
     if not message.message or not message.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     
-    # Validate message length (input validation security)
-    if len(message.message) > MAX_MESSAGE_LENGTH:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Message too long. Maximum {MAX_MESSAGE_LENGTH} characters allowed."
-        )
+    # Sanitize message to prevent XSS attacks and validate length
+    try:
+        sanitized_message = sanitize_message(message.message, MAX_MESSAGE_LENGTH)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Update message with sanitized version
+    message.message = sanitized_message
     
     # Check if Ollama is ready
     if not ollama_service.is_ready:
@@ -220,12 +223,14 @@ async def stream_message(
     if not message.message or not message.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     
-    # Validate message length (input validation security)
-    if len(message.message) > MAX_MESSAGE_LENGTH:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Message too long. Maximum {MAX_MESSAGE_LENGTH} characters allowed."
-        )
+    # Sanitize message to prevent XSS attacks and validate length
+    try:
+        sanitized_message = sanitize_message(message.message, MAX_MESSAGE_LENGTH)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Update message with sanitized version
+    message.message = sanitized_message
     
     # Check if Ollama is ready
     if not ollama_service.is_ready:
