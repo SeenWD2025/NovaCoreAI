@@ -6,12 +6,27 @@ import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
+import { generateServiceToken } from './middleware/service-auth';
 
 config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET || '';
+
+// Generate service token for Gateway (cache it and regenerate when needed)
+let gatewayServiceToken = '';
+try {
+  if (SERVICE_JWT_SECRET) {
+    gatewayServiceToken = generateServiceToken('gateway');
+    console.log('Gateway service token generated successfully');
+  } else {
+    console.warn('WARNING: SERVICE_JWT_SECRET not set. Service-to-service auth disabled.');
+  }
+} catch (error) {
+  console.error('Failed to generate gateway service token:', error);
+}
 
 // Service URLs
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3001';
@@ -141,6 +156,10 @@ app.use(
       '^/api/billing': '/billing',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
       // Forward user info to billing service
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
@@ -169,6 +188,11 @@ app.use(
       '^/api/usage': '/usage',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
@@ -196,6 +220,11 @@ app.use(
       '^/api/chat': '/chat',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
@@ -223,6 +252,11 @@ app.use(
       '^/api/memory': '/memory',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
@@ -253,6 +287,11 @@ app.use(
       '^/api/ngs': '/ngs',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
@@ -281,6 +320,11 @@ app.use(
       '^/api/mcp': '/mcp',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      // Add service-to-service authentication token
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      // Forward user context
       if (req.user) {
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);

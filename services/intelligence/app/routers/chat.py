@@ -17,6 +17,7 @@ from app.services.ollama_service import ollama_service
 from app.services.session_service import SessionService
 from app.services.integration_service import integration_service
 from app.utils.token_counter import token_counter
+from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,8 @@ def check_token_limit(db: Session, user_id: UUID, required_tokens: int, tier: st
 async def send_message(
     message: ChatMessage,
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """Send a message and get a response (non-streaming)."""
     start_time = time.time()
@@ -177,7 +179,8 @@ async def send_message(
 async def stream_message(
     message: ChatMessage,
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """Send a message and stream the response."""
     start_time = time.time()
@@ -326,7 +329,8 @@ async def stream_message(
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_sessions(
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """Get all sessions for the current user."""
     sessions_data = SessionService.get_user_sessions(db, user_id, limit=50)
@@ -350,7 +354,8 @@ async def get_sessions(
 async def get_history(
     session_id: UUID,
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """Get conversation history for a session."""
     # Verify session belongs to user
@@ -388,7 +393,8 @@ async def get_history(
 async def end_session(
     session_id: UUID,
     user_id: UUID = Depends(get_user_id),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
 ):
     """End a chat session."""
     # Verify session belongs to user
