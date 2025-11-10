@@ -20,6 +20,10 @@ from app.services.usage_service import usage_service
 from app.utils.token_counter import token_counter
 from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
 from app.utils.sanitize import sanitize_message
+from app.utils.metrics import (
+    track_message_processing, track_tokens, track_memory_context, 
+    increment_active_sessions, decrement_active_sessions
+)
 from app.config import settings
 
 logger = logging.getLogger(__name__)

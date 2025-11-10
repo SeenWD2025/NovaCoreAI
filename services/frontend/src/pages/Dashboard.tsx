@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { Lesson } from '@/types/curriculum';
 import curriculumService from '@/services/curriculum';
+import QuotaCard from '@/components/QuotaCard';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
@@ -138,6 +139,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Quota Display */}
+      <QuotaCard />
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

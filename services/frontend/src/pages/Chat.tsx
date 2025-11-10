@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader, Brain, MessageSquare, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Loader, Brain, MessageSquare, Sparkles, AlertCircle } from 'lucide-react';
 import type { Message } from '@/types/chat';
 import chatService from '@/services/chat';
 
@@ -8,6 +8,7 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,20 +44,35 @@ export default function Chat() {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setQuotaExceeded(false);
 
     try {
       const response = await chatService.sendMessage(input, sessionId || undefined);
       setMessages(prev => [...prev, response]);
     } catch (error: any) {
       console.error('Failed to send message:', error);
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        session_id: sessionId || '',
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      
+      // Check if error is 429 (quota exceeded)
+      if (error.response?.status === 429) {
+        setQuotaExceeded(true);
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          session_id: sessionId || '',
+          role: 'assistant',
+          content: '⚠️ Daily quota exceeded. You have reached your daily usage limit. Please upgrade to a higher tier for more capacity or try again tomorrow.',
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } else {
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          session_id: sessionId || '',
+          role: 'assistant',
+          content: 'Sorry, I encountered an error. Please try again.',
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -71,6 +87,37 @@ export default function Chat() {
 
   return (
     <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
+      {/* Quota Exceeded Banner */}
+      {quotaExceeded && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-red-800 mb-1">
+                Daily Quota Exceeded
+              </h3>
+              <p className="text-sm text-red-700 mb-2">
+                You've reached your daily usage limit. Upgrade to continue using the AI assistant or wait until tomorrow when your quota resets.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => window.location.href = '/billing'}
+                  className="text-sm bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Upgrade Plan
+                </button>
+                <button
+                  onClick={() => setQuotaExceeded(false)}
+                  className="text-sm text-red-700 hover:text-red-800 px-4 py-2 rounded-lg font-medium"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="card mb-4">
         <div className="flex items-center justify-between">
