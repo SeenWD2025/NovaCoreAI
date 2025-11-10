@@ -16,6 +16,7 @@ from app.models.schemas import (
 from app.services.ollama_service import ollama_service
 from app.services.session_service import SessionService
 from app.services.integration_service import integration_service
+from app.services.usage_service import usage_service
 from app.utils.token_counter import token_counter
 from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
 from app.config import settings
@@ -116,8 +117,19 @@ async def send_message(
     # Get user's subscription tier
     user_tier = await integration_service.get_user_tier(user_id)
     
-    # Check token limits based on actual tier
-    check_token_limit(db, user_id, estimated_tokens, user_tier)
+    # Check quota BEFORE processing message
+    has_quota, quota_msg = usage_service.check_quota(
+        db, user_id, user_tier, "llm_tokens", estimated_tokens
+    )
+    if not has_quota:
+        raise HTTPException(status_code=429, detail=quota_msg)
+    
+    # Also check message quota
+    has_message_quota, message_quota_msg = usage_service.check_quota(
+        db, user_id, user_tier, "messages", 1
+    )
+    if not has_message_quota:
+        raise HTTPException(status_code=429, detail=message_quota_msg)
     
     # Generate response
     system_prompt = "You are Noble NovaCoreAI, an ethical AI assistant focused on truth, wisdom, and human flourishing. Provide thoughtful, helpful responses aligned with the Reclaimer Ethos."
@@ -144,6 +156,15 @@ async def send_message(
             "session_id": str(session_id),
             "model": settings.llm_model,
             "latency_ms": latency_ms
+        }
+    )
+    
+    # Record message count for quota enforcement
+    SessionService.record_usage_ledger(
+        db, user_id, "messages", 1,
+        metadata={
+            "session_id": str(session_id),
+            "message_length": len(message.message)
         }
     )
     
@@ -230,8 +251,19 @@ async def stream_message(
     # Get user's subscription tier
     user_tier = await integration_service.get_user_tier(user_id)
     
-    # Check token limits based on actual tier
-    check_token_limit(db, user_id, estimated_tokens, user_tier)
+    # Check quota BEFORE processing message
+    has_quota, quota_msg = usage_service.check_quota(
+        db, user_id, user_tier, "llm_tokens", estimated_tokens
+    )
+    if not has_quota:
+        raise HTTPException(status_code=429, detail=quota_msg)
+    
+    # Also check message quota
+    has_message_quota, message_quota_msg = usage_service.check_quota(
+        db, user_id, user_tier, "messages", 1
+    )
+    if not has_message_quota:
+        raise HTTPException(status_code=429, detail=message_quota_msg)
     
     async def generate():
         """Generate streaming response."""
@@ -270,6 +302,15 @@ async def stream_message(
                         "model": settings.llm_model,
                         "latency_ms": latency_ms,
                         "streaming": True
+                    }
+                )
+                
+                # Record message count for quota enforcement
+                SessionService.record_usage_ledger(
+                    db, user_id, "messages", 1,
+                    metadata={
+                        "session_id": str(session_id),
+                        "message_length": len(message.message)
                     }
                 )
             except Exception as e:

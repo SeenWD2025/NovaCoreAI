@@ -67,4 +67,27 @@ export class UsageController {
     const tier = await this.usageService.getUserTier(req.user.userId);
     return { userId: req.user.userId, tier };
   }
+
+  /**
+   * Get quota information - current usage and remaining quota
+   * GET /usage/quota
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student', 'subscriber', 'admin')
+  @Get('quota')
+  async getQuotaInfo(@Request() req) {
+    return this.usageService.getQuotaInfo(req.user.userId);
+  }
+
+  /**
+   * Get usage history for the last N days
+   * GET /usage/history?days=30
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student', 'subscriber', 'admin')
+  @Get('history')
+  async getUsageHistory(@Request() req, @Query('days') days?: string) {
+    const daysNum = days ? parseInt(days) : 30;
+    return this.usageService.getUsageHistory(req.user.userId, daysNum);
+  }
 }
