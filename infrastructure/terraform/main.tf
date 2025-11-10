@@ -4,7 +4,7 @@
 
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     digitalocean = {
       source  = "digitalocean/digitalocean"
@@ -59,14 +59,14 @@ variable "app_domain" {
 # Modules
 module "networking" {
   source = "./modules/networking"
-  
+
   environment = var.environment
   region      = var.region
 }
 
 module "database" {
   source = "./modules/database"
-  
+
   environment = var.environment
   region      = var.region
   vpc_uuid    = module.networking.vpc_id
@@ -74,7 +74,7 @@ module "database" {
 
 module "redis" {
   source = "./modules/redis"
-  
+
   environment = var.environment
   region      = var.region
   vpc_uuid    = module.networking.vpc_id
@@ -82,35 +82,35 @@ module "redis" {
 
 module "storage" {
   source = "./modules/storage"
-  
+
   environment = var.environment
   region      = var.region
 }
 
 module "app_server" {
   source = "./modules/droplet"
-  
-  name         = "novacore-app-${var.environment}"
-  environment  = var.environment
-  region       = var.region
-  size         = "s-4vcpu-8gb"
-  vpc_uuid     = module.networking.vpc_id
-  ssh_keys     = data.digitalocean_ssh_keys.all.ssh_keys[*].id
-  volume_ids   = []
-  tags         = ["app", "backend", var.environment]
+
+  name        = "novacore-app-${var.environment}"
+  environment = var.environment
+  region      = var.region
+  size        = "s-4vcpu-8gb"
+  vpc_uuid    = module.networking.vpc_id
+  ssh_keys    = data.digitalocean_ssh_keys.all.ssh_keys[*].id
+  volume_ids  = []
+  tags        = ["app", "backend", var.environment]
 }
 
 module "gpu_server" {
   source = "./modules/droplet"
-  
-  name         = "novacore-gpu-${var.environment}"
-  environment  = var.environment
-  region       = var.region
-  size         = "g-8vcpu-32gb" # GPU-optimized droplet
-  vpc_uuid     = module.networking.vpc_id
-  ssh_keys     = data.digitalocean_ssh_keys.all.ssh_keys[*].id
-  volume_ids   = [module.storage.model_volume_id]
-  tags         = ["gpu", "llm", var.environment]
+
+  name        = "novacore-gpu-${var.environment}"
+  environment = var.environment
+  region      = var.region
+  size        = "g-8vcpu-32gb" # GPU-optimized droplet
+  vpc_uuid    = module.networking.vpc_id
+  ssh_keys    = data.digitalocean_ssh_keys.all.ssh_keys[*].id
+  volume_ids  = [module.storage.model_volume_id]
+  tags        = ["gpu", "llm", var.environment]
 }
 
 # Outputs
