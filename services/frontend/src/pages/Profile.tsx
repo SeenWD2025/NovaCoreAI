@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurriculumStore } from '@/stores/curriculumStore';
 import { 
@@ -11,9 +11,12 @@ import {
   LogOut,
   Save,
   Crown,
-  Zap
+  Zap,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
+import api from '@/services/api';
 
 type TabType = 'profile' | 'security' | 'subscription' | 'notifications';
 
@@ -40,7 +43,7 @@ export default function Profile() {
       // Mock save
       await new Promise(resolve => setTimeout(resolve, 1000));
       showSuccess('Profile updated successfully!');
-    } catch (error) {
+    } catch {
       showError('Failed to update profile');
     } finally {
       setIsSaving(false);
@@ -66,7 +69,7 @@ export default function Profile() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (error) {
+    } catch {
       showError('Failed to change password');
     } finally {
       setIsSaving(false);
@@ -154,13 +157,42 @@ export default function Profile() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="input"
+                      className="input flex-1"
                       disabled
                     />
+                    {user?.email_verified ? (
+                      <div className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-md text-sm font-medium">
+                        <CheckCircle size={16} />
+                        Verified
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-md text-sm font-medium">
+                        <XCircle size={16} />
+                        Unverified
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Email changes require verification
+                    {user?.email_verified 
+                      ? 'Your email address has been verified' 
+                      : 'Email verification required to access all features'}
                   </p>
+                  {!user?.email_verified && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.post('/auth/resend-verification');
+                          showSuccess('Verification email sent! Please check your inbox.');
+                        } catch (err) {
+                          const error = err as { response?: { data?: { message?: string } } };
+                          showError(error.response?.data?.message || 'Failed to send verification email');
+                        }
+                      }}
+                      className="mt-2 text-sm text-primary-800 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded"
+                    >
+                      Resend verification email →
+                    </button>
+                  )}
                 </div>
 
                 <div>
