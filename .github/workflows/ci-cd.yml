@@ -28,9 +28,39 @@ jobs:
           - gateway
           - auth-billing
     
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: noble_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: noble_novacore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Initialize test database
+        run: |
+          PGPASSWORD=test_password psql -h localhost -U noble_test -d noble_novacore_test -f shared/schemas/01_init.sql
+          PGPASSWORD=test_password psql -h localhost -U noble_test -d noble_novacore_test -f shared/schemas/06_usage_ledger_indexes.sql
       
       - name: Set up Python (for Python services)
         if: contains(matrix.service, 'intelligence') || contains(matrix.service, 'memory') || contains(matrix.service, 'noble-spirit')
@@ -49,32 +79,51 @@ jobs:
         working-directory: ./services/${{ matrix.service }}
         run: |
           pip install -r requirements.txt
-          pip install pytest pytest-cov
+          pip install pytest pytest-cov pytest-asyncio
+        env:
+          DATABASE_URL: postgresql://noble_test:test_password@localhost:5432/noble_novacore_test
+          REDIS_URL: redis://localhost:6379
       
       - name: Install Node dependencies
         if: contains(matrix.service, 'gateway') || contains(matrix.service, 'auth-billing')
         working-directory: ./services/${{ matrix.service }}
-        run: npm install
+        run: npm ci
       
       - name: Run Python tests
         if: contains(matrix.service, 'intelligence') || contains(matrix.service, 'memory') || contains(matrix.service, 'noble-spirit')
         working-directory: ./services/${{ matrix.service }}
+        env:
+          DATABASE_URL: postgresql://noble_test:test_password@localhost:5432/noble_novacore_test
+          REDIS_URL: redis://localhost:6379
+          SERVICE_JWT_SECRET: test-secret-for-ci
         run: |
           if [ -d "tests" ]; then
-            pytest tests/ -v --cov=app --cov-report=xml
+            pytest tests/ -v --cov=app --cov-report=xml --cov-report=term
           else
-            echo "No tests found, skipping"
+            echo "⚠️ No tests found for ${{ matrix.service }}"
           fi
       
       - name: Run Node tests
         if: contains(matrix.service, 'gateway') || contains(matrix.service, 'auth-billing')
         working-directory: ./services/${{ matrix.service }}
+        env:
+          DATABASE_URL: postgresql://noble_test:test_password@localhost:5432/noble_novacore_test
+          REDIS_URL: redis://localhost:6379
+          SERVICE_JWT_SECRET: test-secret-for-ci
         run: |
           if [ -f "package.json" ] && grep -q "\"test\"" package.json; then
-            npm test
+            npm test -- --coverage
           else
-            echo "No tests found, skipping"
+            echo "⚠️ No tests found for ${{ matrix.service }}"
           fi
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: ${{ matrix.service }}
+          name: ${{ matrix.service }}-coverage
+        continue-on-error: true
 
   # Build and push Docker images
   build:
