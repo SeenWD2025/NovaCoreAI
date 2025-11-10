@@ -72,6 +72,7 @@ services:
       - REDIS_URL=${REDIS_URL}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - AUTH_SERVICE_URL=http://auth-billing:3001
       - INTELLIGENCE_SERVICE_URL=http://intelligence:8000
       - MEMORY_SERVICE_URL=http://memory:8001
@@ -96,6 +97,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
     restart: unless-stopped
@@ -116,6 +118,7 @@ services:
       - OLLAMA_URL=${OLLAMA_URL}
       - LLM_MODEL=${LLM_MODEL}
       - GPU_ENABLED=${GPU_ENABLED:-true}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - MEMORY_SERVICE_URL=http://memory:8001
       - CELERY_BROKER_URL=${REDIS_URL}/2
       - ENABLE_REFLECTION=true
@@ -142,6 +145,7 @@ services:
       - PORT=8001
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
     restart: unless-stopped
     networks:
@@ -158,6 +162,7 @@ services:
     environment:
       - PORT=4000
       - DATABASE_URL=${DATABASE_URL}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
     restart: unless-stopped
     networks:
       - noble-network
@@ -173,6 +178,7 @@ services:
     environment:
       - PORT=9000
       - DATABASE_URL=${DATABASE_URL}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
     restart: unless-stopped
     networks:
       - noble-network
@@ -188,6 +194,7 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - CELERY_BROKER_URL=${REDIS_URL}/2
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - MEMORY_SERVICE_URL=http://memory:8001
       - POLICY_SERVICE_URL=http://noble-spirit:4000
     restart: unless-stopped
@@ -204,6 +211,7 @@ services:
     container_name: noble-distillation
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - MEMORY_SERVICE_URL=http://memory:8001
       - POLICY_SERVICE_URL=http://noble-spirit:4000
     restart: unless-stopped
@@ -223,6 +231,7 @@ services:
       - MEMORY_SERVICE_URL=http://memory:8001
       - INTELLIGENCE_SERVICE_URL=http://intelligence:8000
       - JWT_SECRET=${JWT_SECRET}
+      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - RUST_LOG=info
     restart: unless-stopped
     networks:
