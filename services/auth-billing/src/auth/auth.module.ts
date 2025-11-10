@@ -8,6 +8,7 @@ import { ServiceAuthController } from './service-auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
 import { RolesGuard } from './roles.guard';
+import { RateLimitGuard } from './rate-limit.guard';
 import { EmailModule } from '../email/email.module';
 
 @Module({
@@ -20,7 +21,7 @@ import { EmailModule } from '../email/email.module';
     EmailModule,
   ],
   controllers: [AuthController, ServiceAuthController],
-  providers: [AuthService, ServiceAuthService, JwtStrategy, LocalStrategy, RolesGuard],
+  providers: [AuthService, ServiceAuthService, JwtStrategy, LocalStrategy, RolesGuard, RateLimitGuard],
   exports: [AuthService, ServiceAuthService, RolesGuard],
 })
 export class AuthModule {}

@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Body, UseGuards, Request, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { RateLimitGuard, RateLimit } from './rate-limit.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -46,6 +47,13 @@ export class AuthController {
   }
 
   @Get('verify-email')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({
+    points: 5,
+    duration: 15 * 60, // 15 minutes
+    keyPrefix: 'email_verify',
+    useIp: true,
+  })
   async verifyEmail(@Query('token') token: string) {
     return this.authService.verifyEmail(token);
   }

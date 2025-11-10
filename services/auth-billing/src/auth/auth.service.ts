@@ -365,21 +365,30 @@ export class AuthService {
    * @param userId User ID
    */
   async resendVerificationEmail(userId: string): Promise<{ message: string }> {
-    // Check rate limiting (prevent spam)
+    // Check rate limiting (3 attempts per hour)
     const rateLimitKey = `email_verify_resend:${userId}`;
-    const recentlySent = await this.redisService.get(rateLimitKey);
+    const attemptsStr = await this.redisService.get(rateLimitKey);
+    const attempts = attemptsStr ? parseInt(attemptsStr, 10) : 0;
 
-    if (recentlySent) {
+    if (attempts >= 3) {
+      const ttl = await this.redisService.getClient().ttl(rateLimitKey);
+      const minutesRemaining = Math.ceil(ttl / 60);
+      
       throw new HttpException(
-        'Verification email was recently sent. Please wait a few minutes before requesting another.',
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: `Too many verification email requests. Please try again in ${minutesRemaining} minute(s).`,
+          retryAfter: ttl,
+        },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
     await this.sendVerificationEmail(userId);
 
-    // Set rate limit (5 minutes)
-    await this.redisService.setWithExpiry(rateLimitKey, '1', 300);
+    // Increment counter with 1 hour expiration
+    const newAttempts = attempts + 1;
+    await this.redisService.setWithExpiry(rateLimitKey, newAttempts.toString(), 3600);
 
     return {
       message: 'Verification email sent successfully. Please check your inbox.',
