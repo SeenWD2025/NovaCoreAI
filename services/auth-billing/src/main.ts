@@ -5,11 +5,15 @@ import { AppModule } from './app.module';
 import * as dotenv from 'dotenv';
 import * as express from 'express';
 import helmet from 'helmet';
+import { CorrelationIdInterceptor } from './interceptors/correlation-id.interceptor';
+import { logger } from './logger';
 
 dotenv.config();
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: false, // Disable default logger, use Winston
+  });
   
   // Security headers
   app.use(helmet({
@@ -30,6 +34,9 @@ async function bootstrap() {
   // This must be done before JSON parsing
   app.use('/billing/webhooks', express.raw({ type: 'application/json' }));
   
+  // Global correlation ID interceptor
+  app.useGlobalInterceptors(new CorrelationIdInterceptor());
+  
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
@@ -41,12 +48,16 @@ async function bootstrap() {
   const port = process.env.PORT || 3001;
   await app.listen(port, '0.0.0.0');
   
-  console.log(`🔐 Auth & Billing Service running on port ${port}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`✅ Stripe webhook configured at /billing/webhooks`);
+  logger.info('🔐 Auth & Billing Service running', {
+    port,
+    environment: process.env.NODE_ENV || 'development'
+  });
+  logger.info('✅ Stripe webhook configured at /billing/webhooks');
+  logger.info('📊 Metrics available at /metrics');
+  logger.info('🔗 Correlation IDs enabled');
   
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
-    console.warn('⚠️  WARNING: STRIPE_WEBHOOK_SECRET not set!');
+    logger.warn('⚠️  WARNING: STRIPE_WEBHOOK_SECRET not set!');
   }
 }
 

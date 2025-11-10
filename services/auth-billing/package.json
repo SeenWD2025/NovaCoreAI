@@ -29,7 +29,9 @@
     "pg": "^8.11.3",
     "prom-client": "^15.1.0",
     "reflect-metadata": "^0.1.13",
-    "stripe": "^14.5.0"
+    "stripe": "^14.5.0",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "@nestjs/testing": "^10.2.10",

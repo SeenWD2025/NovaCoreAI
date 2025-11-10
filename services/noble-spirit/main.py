@@ -5,18 +5,26 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 import uvicorn
 import logging
+import structlog
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
 from app.database import test_connection
 from app.routers import policy
+from app.middleware import CorrelationIdMiddleware
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# Configure structured logging with structlog
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.add_log_level,
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(),
 )
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger("noble-spirit-service")
 
 
 @asynccontextmanager
@@ -27,11 +35,12 @@ async def lifespan(app: FastAPI):
     
     # Test database connection
     db_ok = test_connection()
-    logger.info(f"Database connection: {'✓' if db_ok else '✗'}")
+    logger.info("Database connection status", db_healthy=db_ok)
     
-    logger.info(f"Policy version: {settings.policy_version}")
-    logger.info(f"Constitutional principles: {len(settings.principles)}")
-    logger.info(f"Service ready on port {settings.port}")
+    logger.info("Policy configuration", 
+                policy_version=settings.policy_version,
+                principles_count=len(settings.principles))
+    logger.info("Service ready", port=settings.port)
     
     yield
     
@@ -55,6 +64,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add correlation ID middleware
+app.add_middleware(CorrelationIdMiddleware)
 
 # Include routers
 app.include_router(policy.router)

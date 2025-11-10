@@ -4,6 +4,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { authLoginTotal, authRegistrationTotal } from '../metrics';
 
 @Controller('auth')
 export class AuthController {
@@ -11,12 +12,26 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+    try {
+      const result = await this.authService.register(registerDto);
+      authRegistrationTotal.labels({ status: 'success' }).inc();
+      return result;
+    } catch (error) {
+      authRegistrationTotal.labels({ status: 'failure' }).inc();
+      throw error;
+    }
   }
 
   @Post('login')
   async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+    try {
+      const result = await this.authService.login(loginDto);
+      authLoginTotal.labels({ result: 'success' }).inc();
+      return result;
+    } catch (error) {
+      authLoginTotal.labels({ result: 'failure' }).inc();
+      throw error;
+    }
   }
 
   @Post('refresh')
