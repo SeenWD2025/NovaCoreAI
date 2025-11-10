@@ -15,6 +15,13 @@ from app.models.schemas import (
 )
 from app.services.policy_service import policy_service
 from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
+from app.metrics import (
+    policy_validation_total,
+    policy_alignment_check_total,
+    alignment_score_histogram,
+    policy_violation_total,
+    audit_event_total,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -40,6 +47,17 @@ async def validate_content(
             request.context
         )
         
+        # Track metrics
+        validation_result = 'valid' if result.passed else 'invalid'
+        policy_validation_total.labels(
+            result=validation_result,
+            user_id=request.user_id or 'unknown'
+        ).inc()
+        
+        # Track violations
+        for violation in result.violations:
+            policy_violation_total.labels(violation_type=violation.get('type', 'unknown')).inc()
+        
         # Log audit
         policy_service.log_audit(
             db,
@@ -51,6 +69,8 @@ async def validate_content(
             },
             user_id=request.user_id
         )
+        
+        audit_event_total.labels(event_type='validation').inc()
         
         return result
         
@@ -78,6 +98,10 @@ async def validate_alignment(
             request.self_assessment
         )
         
+        # Track metrics
+        policy_alignment_check_total.labels(user_id=request.user_id or 'unknown').inc()
+        alignment_score_histogram.observe(result.alignment_score)
+        
         # Log audit
         policy_service.log_audit(
             db,
@@ -88,6 +112,8 @@ async def validate_alignment(
             },
             user_id=request.user_id
         )
+        
+        audit_event_total.labels(event_type='alignment_check').inc()
         
         return result
         
