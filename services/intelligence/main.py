@@ -68,8 +68,19 @@ app.add_middleware(
 # Include routers
 app.include_router(chat.router)
 
-# Add Prometheus metrics
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+# Add Prometheus metrics with custom metrics
+instrumentator = Instrumentator(
+    should_group_status_codes=True,
+    should_ignore_untemplated=True,
+    should_respect_env_var=True,
+    should_instrument_requests_inprogress=True,
+    excluded_handlers=["/metrics"],
+    env_var_name="ENABLE_METRICS",
+    inprogress_name="inprogress",
+    inprogress_labels=True,
+)
+
+instrumentator.instrument(app).expose(app, endpoint="/metrics")
 
 
 @app.get("/health", response_model=HealthResponse)

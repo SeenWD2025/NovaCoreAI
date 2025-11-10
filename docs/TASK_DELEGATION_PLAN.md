@@ -233,13 +233,13 @@ Token counting is implemented but not persisted to the `usage_ledger` table. Thi
   - Include resource type breakdown
 
 **Full-Stack Specialist (Frontend):**
-- [ ] Add quota display to dashboard (2 hours)
+- [x] Add quota display to dashboard (2 hours) ✅ COMPLETE
   - Fetch quota from `/usage/quota` endpoint
   - Display token usage (used/limit)
   - Display message usage (used/limit)
   - Visual progress bars
   - Warning when >80% used
-- [ ] Add quota exceeded error handling (1 hour)
+- [x] Add quota exceeded error handling (1 hour) ✅ COMPLETE
   - Catch 429 errors from chat
   - Display friendly message
   - Suggest upgrade to higher tier
@@ -308,7 +308,7 @@ Webhook handler exists but doesn't verify Stripe signatures, allowing potential 
   - Verify invalid signatures rejected
 
 **Full-Stack Specialist:**
-- [ ] Configure raw body parser (30 minutes)
+- [x] Configure raw body parser (30 minutes) ✅ ALREADY CONFIGURED
   - File: `services/auth-billing/src/main.ts`
   - Add express.raw() middleware for `/billing/webhook` route
   - Ensure body available as Buffer
@@ -447,9 +447,9 @@ Several security gaps identified: no email verification, no login throttling, mi
   - Install helmet middleware
   - Configure security headers
   - Test headers present in responses
-- [ ] Implement security headers in Auth service (30 minutes)
+- [x] Implement security headers in Auth service (30 minutes) ✅ ALREADY CONFIGURED
   - Add helmet to NestJS
-  - Configure for NestJS application
+  - Configure for NestJS application (already done in main.ts lines 15-27)
 
 **Cloud and Cybersecurity Specialist (Input Validation):**
 - [x] Define input validation rules (1 hour)
@@ -664,13 +664,13 @@ Prometheus and Grafana are configured but not integrated with services. Producti
   - CPU usage
 
 **Full-Stack Specialist (Python Instrumentation):**
-- [ ] Install prometheus-fastapi-instrumentator (30 minutes)
+- [x] Install prometheus-fastapi-instrumentator (30 minutes) ✅ ALREADY INSTALLED
   - Add to requirements.txt for all Python services
   - Install in each service
-- [ ] Instrument Intelligence service (2 hours)
+- [x] Instrument Intelligence service (2 hours) ✅ BASIC SETUP COMPLETE
   - File: `services/intelligence/app/main.py`
-  - Add Prometheus middleware
-  - Export metrics at `/metrics` endpoint
+  - Add Prometheus middleware (line 72 - already done)
+  - Export metrics at `/metrics` endpoint (already done)
   - Add custom metrics:
     - `chat_messages_total` (counter)
     - `chat_tokens_total` (counter)
