@@ -1,12 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET || '';
-
-if (!SERVICE_JWT_SECRET) {
-  console.warn('WARNING: SERVICE_JWT_SECRET not set. Service authentication will not work!');
-}
-
 interface ServiceTokenPayload {
   serviceName: string;
   type: string;
@@ -30,6 +24,7 @@ export interface ServiceAuthRequest extends Request {
  * authenticated services can make requests
  */
 export const serviceAuthMiddleware = (req: ServiceAuthRequest, res: Response, next: NextFunction) => {
+  const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET || '';
   const serviceToken = req.headers['x-service-token'] as string;
 
   if (!serviceToken) {
@@ -94,6 +89,8 @@ export const serviceAuthMiddleware = (req: ServiceAuthRequest, res: Response, ne
  * In production, services should request tokens from the auth service
  */
 export const generateServiceToken = (serviceName: string): string => {
+  const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET || '';
+  
   if (!SERVICE_JWT_SECRET) {
     throw new Error('SERVICE_JWT_SECRET is not configured');
   }
@@ -101,7 +98,8 @@ export const generateServiceToken = (serviceName: string): string => {
   const payload = {
     serviceName,
     type: 'service',
-    iat: Math.floor(Date.now() / 1000),
+    // iat will be added automatically by jwt.sign
+    jti: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Unique token ID
   };
 
   return jwt.sign(payload, SERVICE_JWT_SECRET, { expiresIn: '24h' });
