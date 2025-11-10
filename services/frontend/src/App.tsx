@@ -10,6 +10,7 @@ import AuthLayout from './layouts/AuthLayout';
 // Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import LevelBrowser from './pages/LevelBrowser';
 import LessonViewer from './pages/LessonViewer';
@@ -51,6 +52,9 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
         </Route>
+
+        {/* Email verification route (public, no layout) */}
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>

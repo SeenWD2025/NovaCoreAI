@@ -14,6 +14,7 @@ import {
 import type { Lesson } from '@/types/curriculum';
 import curriculumService from '@/services/curriculum';
 import QuotaCard from '@/components/QuotaCard';
+import EmailVerificationBanner from '@/components/EmailVerificationBanner';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
@@ -54,6 +55,9 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Email Verification Banner */}
+      <EmailVerificationBanner isVerified={user?.email_verified} />
+
       {/* Welcome Header */}
       <div className="card bg-gradient-to-r from-primary-800 to-primary-600 text-white">
         <h1 className="text-3xl font-bold mb-2">

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { UserPlus } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function Register() {
   const [email, setEmail] = useState('');
@@ -28,6 +29,7 @@ export default function Register() {
 
     try {
       await register(email, password);
+      toast.success('Account created! Please check your email to verify your address.');
       navigate('/dashboard');
     } catch (err) {
       // Error is handled by the store
