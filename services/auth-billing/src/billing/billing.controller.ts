@@ -24,7 +24,9 @@ export class BillingController {
     @Headers('stripe-signature') signature: string,
     @Req() request: any,
   ) {
-    return this.billingService.handleWebhook(signature, request.rawBody);
+    // rawBody is a Buffer when using express.raw() middleware
+    const rawBody = request.body;
+    return this.billingService.handleWebhook(signature, rawBody);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

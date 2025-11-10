@@ -61,13 +61,29 @@ export class StripeService {
   }
 
   async handleWebhook(signature: string, rawBody: Buffer) {
+    // Verify webhook secret is configured
+    if (!this.webhookSecret) {
+      console.error('STRIPE_WEBHOOK_SECRET is not configured');
+      throw new Error('Webhook secret not configured');
+    }
+
+    if (!signature) {
+      console.error('Missing stripe-signature header');
+      throw new Error('Missing stripe-signature header');
+    }
+
     try {
+      // Verify signature and construct event
+      // This will throw an error if the signature is invalid
       const event = this.stripe.webhooks.constructEvent(
         rawBody,
         signature,
         this.webhookSecret,
       );
 
+      console.log(`✅ Webhook verified: ${event.type} (ID: ${event.id})`);
+
+      // Handle the event based on type
       switch (event.type) {
         case 'checkout.session.completed':
           await this.handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
@@ -82,17 +98,28 @@ export class StripeService {
           await this.handleSubscriptionDelete(event.data.object as Stripe.Subscription);
           break;
         
+        case 'invoice.payment_succeeded':
+          await this.handlePaymentSuccess(event.data.object as Stripe.Invoice);
+          break;
+        
         case 'invoice.payment_failed':
           await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
           break;
         
         default:
-          console.log(`Unhandled event type: ${event.type}`);
+          console.log(`ℹ️  Unhandled event type: ${event.type}`);
       }
 
-      return { received: true };
+      return { received: true, eventType: event.type };
     } catch (error) {
-      console.error('Webhook error:', error.message);
+      // Log detailed error information
+      if (error.message.includes('No signatures found')) {
+        console.error('❌ Webhook signature verification failed: Invalid signature');
+      } else if (error.message.includes('timestamp is too old')) {
+        console.error('❌ Webhook signature verification failed: Timestamp too old (replay attack?)');
+      } else {
+        console.error('❌ Webhook error:', error.message);
+      }
       throw error;
     }
   }
@@ -147,7 +174,7 @@ export class StripeService {
 
   private async handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     const userResult = await this.db.query(
-      'SELECT user_id FROM subscriptions WHERE stripe_subscription_id = $1',
+      'SELECT user_id, tier FROM subscriptions WHERE stripe_subscription_id = $1',
       [subscription.id],
     );
 
@@ -157,20 +184,37 @@ export class StripeService {
     }
 
     const userId = userResult.rows[0].user_id;
+    let tier = userResult.rows[0].tier;
+
+    // If subscription has items, try to determine tier from price ID
+    if (subscription.items && subscription.items.data.length > 0) {
+      const priceId = subscription.items.data[0].price.id;
+      const newTier = this.mapPriceIdToTier(priceId);
+      if (newTier !== 'free_trial' && newTier !== tier) {
+        tier = newTier;
+        // Update tier in users table if it changed
+        await this.db.query(
+          `UPDATE users SET subscription_tier = $1 WHERE id = $2`,
+          [tier, userId],
+        );
+        console.log(`Subscription tier changed to ${tier} for user ${userId}`);
+      }
+    }
 
     await this.db.query(
       `UPDATE subscriptions
-       SET status = $1, current_period_start = $2, current_period_end = $3, updated_at = NOW()
-       WHERE stripe_subscription_id = $4`,
+       SET status = $1, tier = $2, current_period_start = $3, current_period_end = $4, updated_at = NOW()
+       WHERE stripe_subscription_id = $5`,
       [
         subscription.status,
+        tier,
         new Date(subscription.current_period_start * 1000),
         new Date(subscription.current_period_end * 1000),
         subscription.id,
       ],
     );
 
-    console.log(`Subscription updated: ${subscription.id}`);
+    console.log(`✅ Subscription updated: ${subscription.id} (${tier})`);
   }
 
   private async handleSubscriptionDelete(subscription: Stripe.Subscription) {
@@ -198,7 +242,51 @@ export class StripeService {
     console.log(`Subscription canceled for user ${userId}`);
   }
 
+  private async handlePaymentSuccess(invoice: Stripe.Invoice) {
+    console.log(`💰 Payment succeeded for subscription: ${invoice.subscription}`);
+    
+    // Log successful payment to database for record-keeping
+    if (invoice.subscription) {
+      const userResult = await this.db.query(
+        'SELECT user_id FROM subscriptions WHERE stripe_subscription_id = $1',
+        [invoice.subscription],
+      );
+
+      if (userResult.rows.length > 0) {
+        const userId = userResult.rows[0].user_id;
+        console.log(`Payment recorded for user ${userId}: $${(invoice.amount_paid / 100).toFixed(2)}`);
+      }
+    }
+  }
+
   private async handlePaymentFailed(invoice: Stripe.Invoice) {
-    console.error(`Payment failed for subscription: ${invoice.subscription}`);
+    console.error(`❌ Payment failed for subscription: ${invoice.subscription}`);
+    
+    // You might want to send notification to user here
+    if (invoice.subscription) {
+      const userResult = await this.db.query(
+        'SELECT user_id FROM subscriptions WHERE stripe_subscription_id = $1',
+        [invoice.subscription],
+      );
+
+      if (userResult.rows.length > 0) {
+        const userId = userResult.rows[0].user_id;
+        console.error(`Payment failure for user ${userId} - amount: $${(invoice.amount_due / 100).toFixed(2)}`);
+        // TODO: Send email notification to user
+      }
+    }
+  }
+
+  /**
+   * Map Stripe price ID to subscription tier
+   * This is used when we need to determine tier from Stripe data
+   */
+  private mapPriceIdToTier(priceId: string): string {
+    if (priceId === process.env.STRIPE_BASIC_PRICE_ID) {
+      return 'basic';
+    } else if (priceId === process.env.STRIPE_PRO_PRICE_ID) {
+      return 'pro';
+    }
+    return 'free_trial';
   }
 }
