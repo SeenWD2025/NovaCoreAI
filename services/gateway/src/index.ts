@@ -8,6 +8,10 @@ import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
 import { generateServiceToken } from './middleware/service-auth';
+import { metricsMiddleware } from './middleware/metrics-middleware';
+import { correlationIdMiddleware } from './middleware/correlation-id';
+import { register, websocketConnectionsActive, websocketConnectionsTotal, websocketMessagesTotal, rateLimitExceededTotal, authValidationTotal } from './metrics';
+import { logger } from './logger';
 
 config();
 
@@ -39,6 +43,12 @@ const NGS_SERVICE_URL = process.env.NGS_SERVICE_URL || 'http://localhost:9000';
 // Middleware
 app.use(cors());
 
+// Correlation ID middleware (must be early in the chain)
+app.use(correlationIdMiddleware);
+
+// Metrics middleware (must be early to track all requests)
+app.use(metricsMiddleware);
+
 // Security headers using helmet
 app.use(helmet({
   contentSecurityPolicy: {
@@ -60,11 +70,24 @@ app.use(helmet({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Rate limiting
+// Rate limiting with metrics tracking
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
+  handler: (req, res) => {
+    // Track rate limit violations
+    rateLimitExceededTotal.labels({ route: req.path }).inc();
+    logger.warn({
+      message: 'Rate limit exceeded',
+      ip: req.ip,
+      path: req.path,
+      correlationId: (req as any).correlationId
+    });
+    res.status(429).json({
+      error: 'Too many requests from this IP, please try again later.'
+    });
+  }
 });
 
 app.use('/api/', limiter);
@@ -83,14 +106,17 @@ const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) 
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
+    authValidationTotal.labels({ result: 'failure' }).inc();
     return res.status(401).json({ error: 'Access token required' });
   }
 
   jwt.verify(token, JWT_SECRET, (err, decoded: any) => {
     if (err) {
+      authValidationTotal.labels({ result: 'failure' }).inc();
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
 
+    authValidationTotal.labels({ result: 'success' }).inc();
     req.user = {
       userId: decoded.sub,
       email: decoded.email,
@@ -120,6 +146,16 @@ const optionalAuth = (req: AuthRequest, res: Response, next: NextFunction) => {
     next();
   });
 };
+
+// Metrics endpoint for Prometheus
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (err) {
+    res.status(500).end(err);
+  }
+});
 
 // Health check (needs JSON parser)
 app.get('/health', express.json(), (req, res) => {
@@ -394,14 +430,15 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
-  console.log('WebSocket connection attempt');
+  logger.info('WebSocket connection attempt');
 
   // Extract token from query string or headers
   const url = new URL(req.url || '', `http://${req.headers.host}`);
   const token = url.searchParams.get('token') || req.headers['sec-websocket-protocol'];
 
   if (!token) {
-    console.log('WebSocket rejected: No token provided');
+    websocketConnectionsTotal.labels({ status: 'rejected' }).inc();
+    logger.warn('WebSocket rejected: No token provided');
     ws.close(1008, 'Authentication required');
     return;
   }
@@ -414,7 +451,15 @@ wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
     ws.role = decoded.role;
     ws.isAlive = true;
 
-    console.log(`WebSocket authenticated: ${ws.email} (${ws.userId})`);
+    // Track successful connection
+    websocketConnectionsTotal.labels({ status: 'success' }).inc();
+    websocketConnectionsActive.inc();
+
+    logger.info({
+      message: 'WebSocket authenticated',
+      email: ws.email,
+      userId: ws.userId
+    });
 
     ws.send(
       JSON.stringify({
@@ -425,11 +470,17 @@ wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
         timestamp: new Date().toISOString(),
       })
     );
+    websocketMessagesTotal.labels({ direction: 'outbound' }).inc();
 
     ws.on('message', (message) => {
       try {
+        websocketMessagesTotal.labels({ direction: 'inbound' }).inc();
         const data = JSON.parse(message.toString());
-        console.log(`Received from ${ws.email}:`, data.type);
+        logger.debug({
+          message: 'WebSocket message received',
+          from: ws.email,
+          type: data.type
+        });
 
         // Echo for now - Phase 4 will route to Intelligence Core
         ws.send(
@@ -441,14 +492,19 @@ wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
             note: 'Phase 4 - Intelligence Core integration coming soon',
           })
         );
+        websocketMessagesTotal.labels({ direction: 'outbound' }).inc();
       } catch (err) {
-        console.error('WebSocket message error:', err);
+        logger.error({
+          message: 'WebSocket message error',
+          error: err
+        });
         ws.send(
           JSON.stringify({
             type: 'error',
             error: 'Invalid message format',
           })
         );
+        websocketMessagesTotal.labels({ direction: 'outbound' }).inc();
       }
     });
 
@@ -457,14 +513,23 @@ wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
     });
 
     ws.on('close', () => {
-      console.log(`WebSocket disconnected: ${ws.email}`);
+      websocketConnectionsActive.dec();
+      logger.info({
+        message: 'WebSocket disconnected',
+        email: ws.email
+      });
     });
 
     ws.on('error', (err) => {
-      console.error(`WebSocket error for ${ws.email}:`, err.message);
+      logger.error({
+        message: 'WebSocket error',
+        email: ws.email,
+        error: err.message
+      });
     });
   } catch (err) {
-    console.log('WebSocket rejected: Invalid token');
+    websocketConnectionsTotal.labels({ status: 'rejected' }).inc();
+    logger.warn('WebSocket rejected: Invalid token');
     ws.close(1008, 'Invalid token');
   }
 });
@@ -473,7 +538,10 @@ wss.on('connection', (ws: AuthenticatedWebSocket, req) => {
 const wsInterval = setInterval(() => {
   wss.clients.forEach((ws: AuthenticatedWebSocket) => {
     if (ws.isAlive === false) {
-      console.log(`Terminating inactive WebSocket for ${ws.email}`);
+      logger.info({
+        message: 'Terminating inactive WebSocket',
+        email: ws.email
+      });
       return ws.terminate();
     }
 
@@ -488,19 +556,21 @@ wss.on('close', () => {
 
 // Start server
 server.listen(PORT, () => {
-  console.log('🚀 Noble Gateway (Phase 3 - Complete)');
-  console.log(`📡 HTTP API: http://0.0.0.0:${PORT}`);
-  console.log(`🔌 WebSocket: ws://0.0.0.0:${PORT}/ws/chat`);
-  console.log(`✅ Health check: http://0.0.0.0:${PORT}/health`);
-  console.log(`🔐 JWT authentication: enabled`);
-  console.log(`📊 Rate limiting: enabled`);
-  console.log('');
-  console.log('Service Routes:');
-  console.log(`  - /api/auth/* → ${AUTH_SERVICE_URL}`);
-  console.log(`  - /api/billing/* → ${AUTH_SERVICE_URL}`);
-  console.log(`  - /api/chat/* → ${INTELLIGENCE_SERVICE_URL}`);
-  console.log(`  - /api/memory/* → ${MEMORY_SERVICE_URL}`);
-  console.log(`  - /api/ngs/* → ${NGS_SERVICE_URL}`);
+  logger.info('🚀 Noble Gateway (Phase 3 - Complete)');
+  logger.info(`📡 HTTP API: http://0.0.0.0:${PORT}`);
+  logger.info(`🔌 WebSocket: ws://0.0.0.0:${PORT}/ws/chat`);
+  logger.info(`✅ Health check: http://0.0.0.0:${PORT}/health`);
+  logger.info(`📊 Metrics: http://0.0.0.0:${PORT}/metrics`);
+  logger.info(`🔐 JWT authentication: enabled`);
+  logger.info(`📊 Rate limiting: enabled`);
+  logger.info(`🔗 Correlation IDs: enabled`);
+  logger.info('');
+  logger.info('Service Routes:');
+  logger.info(`  - /api/auth/* → ${AUTH_SERVICE_URL}`);
+  logger.info(`  - /api/billing/* → ${AUTH_SERVICE_URL}`);
+  logger.info(`  - /api/chat/* → ${INTELLIGENCE_SERVICE_URL}`);
+  logger.info(`  - /api/memory/* → ${MEMORY_SERVICE_URL}`);
+  logger.info(`  - /api/ngs/* → ${NGS_SERVICE_URL}`);
 });
 
 // Graceful shutdown

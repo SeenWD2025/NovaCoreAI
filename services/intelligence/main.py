@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
+import structlog
 from contextlib import asynccontextmanager
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -11,41 +12,45 @@ from app.database import test_connection
 from app.services.ollama_service import ollama_service
 from app.routers import chat
 from app.models.schemas import HealthResponse
+from app.middleware import CorrelationIdMiddleware
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# Configure structured logging with structlog
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.add_log_level,
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(),
 )
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger("intelligence-service")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     # Startup
-    logger.info("🧠 Intelligence Core starting up...")
+    logger.info("🧠 Intelligence Core starting up")
     
     # Test database connection
-    if test_connection():
-        logger.info("✅ Database connection successful")
-    else:
-        logger.error("❌ Database connection failed")
+    db_ok = test_connection()
+    logger.info("Database connection status", db_healthy=db_ok)
     
     # Initialize Ollama service
     await ollama_service.initialize()
     
-    if ollama_service.is_ready:
-        logger.info("✅ Ollama service ready")
-    else:
-        logger.warning("⚠️  Ollama service not ready - will operate in degraded mode")
+    logger.info("Ollama service status", 
+                is_ready=ollama_service.is_ready,
+                gpu_available=ollama_service.gpu_available)
     
-    logger.info(f"🚀 Intelligence Core ready on port {settings.port}")
+    logger.info("🚀 Intelligence Core ready", port=settings.port)
     
     yield
     
     # Shutdown
-    logger.info("🛑 Intelligence Core shutting down...")
+    logger.info("🛑 Intelligence Core shutting down")
 
 
 # Create FastAPI app
@@ -64,6 +69,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add correlation ID middleware
+app.add_middleware(CorrelationIdMiddleware)
 
 # Include routers
 app.include_router(chat.router)

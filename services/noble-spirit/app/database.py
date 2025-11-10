@@ -1,5 +1,6 @@
 """Database connection and session management."""
 from sqlalchemy import create_engine, text
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 from contextlib import contextmanager
@@ -7,6 +8,9 @@ from app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Declarative base for ORM models
+Base = declarative_base()
 
 # Create SQLAlchemy engine with connection pooling
 engine = create_engine(

@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
+import { subscriptionChangesTotal, stripeWebhookTotal } from '../metrics';
 
 @Controller('billing')
 export class BillingController {
@@ -13,10 +14,18 @@ export class BillingController {
   @Roles('student', 'subscriber')
   @Post('create-checkout')
   async createCheckout(@Request() req, @Body() createCheckoutDto: CreateCheckoutDto) {
-    return this.billingService.createCheckoutSession(
+    const result = await this.billingService.createCheckoutSession(
       req.user.userId,
       createCheckoutDto.tier,
     );
+    
+    // Track subscription change (from free_trial or current tier to new tier)
+    subscriptionChangesTotal.labels({
+      from_tier: 'free_trial', // TODO: Get actual current tier
+      to_tier: createCheckoutDto.tier
+    }).inc();
+    
+    return result;
   }
 
   @Post('webhooks')
@@ -26,7 +35,22 @@ export class BillingController {
   ) {
     // rawBody is a Buffer when using express.raw() middleware
     const rawBody = request.body;
-    return this.billingService.handleWebhook(signature, rawBody);
+    
+    try {
+      const result = await this.billingService.handleWebhook(signature, rawBody);
+      // Track successful webhook processing
+      stripeWebhookTotal.labels({
+        event_type: result?.type || 'unknown',
+        status: 'success'
+      }).inc();
+      return result;
+    } catch (error) {
+      stripeWebhookTotal.labels({
+        event_type: 'unknown',
+        status: 'error'
+      }).inc();
+      throw error;
+    }
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
