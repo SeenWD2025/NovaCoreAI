@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import axios from 'axios';
 import type { User } from '@/types/auth';
 import authService from '@/services/auth';
 
@@ -30,28 +31,44 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: true, 
         isLoading: false 
       });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Login failed';
-      set({ 
-        error: errorMessage, 
-        isLoading: false, 
-        isAuthenticated: false 
-      });
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const errorMessage = error.response?.data?.message || 'Login failed';
+        set({ 
+          error: errorMessage, 
+          isLoading: false, 
+          isAuthenticated: false 
+        });
+      } else {
+        set({ 
+          error: 'Login failed', 
+          isLoading: false, 
+          isAuthenticated: false 
+        });
+      }
       throw error;
     }
   },
 
   register: async (email: string, password: string) => {
+    console.log('📝 Auth store: Starting registration for', email);
     set({ isLoading: true, error: null });
     try {
       const response = await authService.register({ email, password });
+      console.log('✅ Auth store: Registration successful', response);
       set({ 
         user: response.user, 
         isAuthenticated: true, 
         isLoading: false 
       });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Registration failed';
+    } catch (error: unknown) {
+      console.error('❌ Auth store: Registration failed', error);
+      let errorMessage = 'Registration failed';
+      
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message ?? error.message;
+      }
+      
       set({ 
         error: errorMessage, 
         isLoading: false, 
@@ -71,7 +88,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false, 
         error: null 
       });
-    } catch (error) {
+    } catch {
       // Still clear state even if API call fails
       set({ 
         user: null, 
@@ -91,7 +108,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await authService.getCurrentUser();
       set({ user, isAuthenticated: true, isLoading: false });
-    } catch (error) {
+    } catch {
       // Token might be invalid, clear auth state
       set({ 
         user: null, 

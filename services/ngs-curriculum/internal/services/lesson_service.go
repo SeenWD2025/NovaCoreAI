@@ -47,7 +47,7 @@ func (s *LessonService) GetLessonsByLevel(levelID int, userID uuid.UUID) ([]mode
 		var l models.LessonWithCompletion
 		var completedAt sql.NullTime
 		var score sql.NullInt64
-		
+
 		err := rows.Scan(
 			&l.ID, &l.LevelID, &l.Title, &l.Description, &l.LessonOrder, &l.LessonType,
 			&l.ContentMarkdown, &l.CoreLesson, &l.HumanPractice, &l.ReflectionPrompt,
@@ -58,14 +58,14 @@ func (s *LessonService) GetLessonsByLevel(levelID int, userID uuid.UUID) ([]mode
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan lesson: %w", err)
 		}
-		
+
 		if completedAt.Valid {
 			l.CompletedAt = completedAt.Time
 		}
 		if score.Valid {
 			l.UserScore = int(score.Int64)
 		}
-		
+
 		lessons = append(lessons, l)
 	}
 
@@ -139,7 +139,7 @@ func (s *LessonService) CompleteLesson(userID uuid.UUID, req models.CompleteLess
 		SELECT id FROM lesson_completions
 		WHERE user_id = $1 AND lesson_id = $2
 	`, userID, req.LessonID).Scan(&existingID)
-	
+
 	if err == nil {
 		// Already completed, just return the existing completion
 		var completion models.LessonCompletion
@@ -155,7 +155,7 @@ func (s *LessonService) CompleteLesson(userID uuid.UUID, req models.CompleteLess
 		if err != nil {
 			return nil, fmt.Errorf("failed to get existing completion: %w", err)
 		}
-		
+
 		log.Printf("Lesson %s already completed by user %s", req.LessonID, userID)
 		return &completion, nil
 	} else if err != sql.ErrNoRows {
@@ -333,7 +333,7 @@ func (s *LessonService) GetUserReflections(userID uuid.UUID, limit int) ([]model
 func (s *LessonService) SubmitReflection(userID uuid.UUID, req models.SubmitReflectionRequest) (*models.UserReflection, error) {
 	// Calculate quality score (simplified - in production would use AI)
 	qualityScore := s.calculateReflectionQuality(req.ReflectionText)
-	
+
 	// Award XP based on quality
 	xpAwarded := 15 // Medium quality default
 	if qualityScore >= 0.8 {
@@ -353,7 +353,7 @@ func (s *LessonService) SubmitReflection(userID uuid.UUID, req models.SubmitRefl
 	var reflection models.UserReflection
 	var lessonID interface{}
 	var levelNumber interface{}
-	
+
 	if req.LessonID != uuid.Nil {
 		lessonID = req.LessonID
 	}
@@ -367,10 +367,10 @@ func (s *LessonService) SubmitReflection(userID uuid.UUID, req models.SubmitRefl
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, user_id, lesson_id, level_number, reflection_prompt, 
 		          reflection_text, quality_score, xp_awarded, is_public, created_at
-	`, userID, lessonID, levelNumber, req.ReflectionPrompt, req.ReflectionText, 
-	   qualityScore, xpAwarded, req.IsPublic).Scan(
+	`, userID, lessonID, levelNumber, req.ReflectionPrompt, req.ReflectionText,
+		qualityScore, xpAwarded, req.IsPublic).Scan(
 		&reflection.ID, &reflection.UserID, &lessonID, &levelNumber, &reflection.ReflectionPrompt,
-		&reflection.ReflectionText, &reflection.QualityScore, &reflection.XPAwarded, 
+		&reflection.ReflectionText, &reflection.QualityScore, &reflection.XPAwarded,
 		&reflection.IsPublic, &reflection.CreatedAt,
 	)
 	if err != nil {
@@ -414,7 +414,7 @@ func (s *LessonService) SubmitReflection(userID uuid.UUID, req models.SubmitRefl
 // In production, this would integrate with an AI model
 func (s *LessonService) calculateReflectionQuality(text string) float64 {
 	length := len(text)
-	
+
 	// Basic heuristics
 	if length < 50 {
 		return 0.3

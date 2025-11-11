@@ -41,11 +41,12 @@ api.interceptors.response.use(
             refresh_token: refreshToken,
           });
 
-          const { access_token } = response.data;
-          localStorage.setItem('access_token', access_token);
+          // Handle both camelCase and snake_case response formats
+          const accessToken = response.data.access_token || response.data.accessToken;
+          localStorage.setItem('access_token', accessToken);
 
           // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return api(originalRequest);
         }
       } catch (refreshError) {

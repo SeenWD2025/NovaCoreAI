@@ -16,7 +16,7 @@ func TestLevelProgression(t *testing.T) {
 		LevelUpXPThresholds: []int{0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700, 3250, 3850},
 		AgentUnlockLevel:    12,
 	}
-	
+
 	// Create a mock progress service (without DB connection for unit tests)
 	service := services.NewProgressService(nil, cfg)
 
@@ -75,10 +75,10 @@ func TestXPTracking(t *testing.T) {
 
 	t.Run("Multiple XP sources accumulate", func(t *testing.T) {
 		totalXP := 0
-		totalXP += cfg.XPSources["lesson_completion"]  // 50
-		totalXP += cfg.XPSources["challenge_passed"]   // 100
-		totalXP += cfg.XPSources["reflection"]         // 25
-		
+		totalXP += cfg.XPSources["lesson_completion"] // 50
+		totalXP += cfg.XPSources["challenge_passed"]  // 100
+		totalXP += cfg.XPSources["reflection"]        // 25
+
 		assert.Equal(t, 175, totalXP, "Total XP should accumulate correctly")
 	})
 }
@@ -116,7 +116,7 @@ func TestAchievementUnlocking(t *testing.T) {
 	t.Run("Level up triggers achievement", func(t *testing.T) {
 		oldLevel := 5
 		newLevel := 6
-		
+
 		leveledUp := newLevel > oldLevel
 		assert.True(t, leveledUp, "Level up should be detected")
 	})
@@ -124,7 +124,7 @@ func TestAchievementUnlocking(t *testing.T) {
 	t.Run("Same level doesn't trigger achievement", func(t *testing.T) {
 		oldLevel := 5
 		newLevel := 5
-		
+
 		leveledUp := newLevel > oldLevel
 		assert.False(t, leveledUp, "No level up when level stays the same")
 	})
@@ -133,7 +133,7 @@ func TestAchievementUnlocking(t *testing.T) {
 		agentUnlockLevel := 12
 		previouslyUnlocked := false
 		currentLevel := 12
-		
+
 		shouldUnlock := currentLevel >= agentUnlockLevel && !previouslyUnlocked
 		assert.True(t, shouldUnlock, "Agent unlock should trigger achievement")
 	})
@@ -142,7 +142,7 @@ func TestAchievementUnlocking(t *testing.T) {
 		agentUnlockLevel := 12
 		previouslyUnlocked := true
 		currentLevel := 13
-		
+
 		shouldUnlock := currentLevel >= agentUnlockLevel && !previouslyUnlocked
 		assert.False(t, shouldUnlock, "Agent unlock achievement shouldn't trigger if already unlocked")
 	})
@@ -157,12 +157,12 @@ func TestProgressCalculations(t *testing.T) {
 	t.Run("Progress at 0% of current level", func(t *testing.T) {
 		currentLevel := 2
 		totalXP := 100 // At the start of level 2
-		
-		currentThreshold := cfg.LevelUpXPThresholds[currentLevel-1]   // 100
-		nextThreshold := cfg.LevelUpXPThresholds[currentLevel]         // 250
-		xpInCurrentLevel := totalXP - currentThreshold                 // 0
-		xpNeededForLevel := nextThreshold - currentThreshold           // 150
-		
+
+		currentThreshold := cfg.LevelUpXPThresholds[currentLevel-1] // 100
+		nextThreshold := cfg.LevelUpXPThresholds[currentLevel]      // 250
+		xpInCurrentLevel := totalXP - currentThreshold              // 0
+		xpNeededForLevel := nextThreshold - currentThreshold        // 150
+
 		progressPercent := (float64(xpInCurrentLevel) / float64(xpNeededForLevel)) * 100
 		assert.Equal(t, 0.0, progressPercent, "Progress should be 0% at level start")
 	})
@@ -170,12 +170,12 @@ func TestProgressCalculations(t *testing.T) {
 	t.Run("Progress at 50% of current level", func(t *testing.T) {
 		currentLevel := 2
 		totalXP := 175 // Halfway through level 2 (100 + 75)
-		
+
 		currentThreshold := cfg.LevelUpXPThresholds[currentLevel-1]
 		nextThreshold := cfg.LevelUpXPThresholds[currentLevel]
 		xpInCurrentLevel := totalXP - currentThreshold
 		xpNeededForLevel := nextThreshold - currentThreshold
-		
+
 		progressPercent := (float64(xpInCurrentLevel) / float64(xpNeededForLevel)) * 100
 		assert.Equal(t, 50.0, progressPercent, "Progress should be 50% at midpoint")
 	})
@@ -183,7 +183,7 @@ func TestProgressCalculations(t *testing.T) {
 	t.Run("XP to next level calculation", func(t *testing.T) {
 		totalXP := 150
 		nextThreshold := 250
-		
+
 		xpToNextLevel := nextThreshold - totalXP
 		assert.Equal(t, 100, xpToNextLevel, "Should need 100 more XP to level up")
 	})
@@ -220,7 +220,7 @@ func calculateLevel(service *services.ProgressService, totalXP int) int {
 	cfg := &config.Config{
 		LevelUpXPThresholds: []int{0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700, 3250, 3850},
 	}
-	
+
 	level := 1
 	for i, threshold := range cfg.LevelUpXPThresholds {
 		if totalXP >= threshold {

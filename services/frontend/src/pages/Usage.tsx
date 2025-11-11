@@ -1,3 +1,4 @@
+import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 
@@ -62,8 +63,11 @@ const Usage: React.FC = () => {
       // Fetch storage usage
       const storageResponse = await api.get('/api/usage/storage');
       setStorageUsage(storageResponse.data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch usage data');
+    } catch (err: unknown) {
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.message ?? err.message
+        : 'Failed to fetch usage data';
+      setError(message);
       console.error('Error fetching usage:', err);
     } finally {
       setLoading(false);

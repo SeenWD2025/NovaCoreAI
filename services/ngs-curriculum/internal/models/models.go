@@ -40,12 +40,12 @@ type Achievement struct {
 
 // CurriculumLevel defines a level in the 24-level curriculum
 type CurriculumLevel struct {
-	ID                  int             `json:"id"`
-	LevelNumber         int             `json:"level_number"`
-	Title               string          `json:"title"`
-	Description         string          `json:"description"`
-	UnlockRequirements  json.RawMessage `json:"unlock_requirements,omitempty"`
-	XPRequired          int             `json:"xp_required"`
+	ID                 int             `json:"id"`
+	LevelNumber        int             `json:"level_number"`
+	Title              string          `json:"title"`
+	Description        string          `json:"description"`
+	UnlockRequirements json.RawMessage `json:"unlock_requirements,omitempty"`
+	XPRequired         int             `json:"xp_required"`
 }
 
 // Lesson represents a learning lesson with full NGS curriculum content
