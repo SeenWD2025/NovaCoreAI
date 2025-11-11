@@ -40,7 +40,7 @@ export class BillingController {
       const result = await this.billingService.handleWebhook(signature, rawBody);
       // Track successful webhook processing
       stripeWebhookTotal.labels({
-        event_type: result?.type || 'unknown',
+        event_type: result?.eventType || 'unknown',
         status: 'success'
       }).inc();
       return result;
