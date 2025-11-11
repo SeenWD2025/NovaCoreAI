@@ -40,6 +40,17 @@ const MEMORY_SERVICE_URL = process.env.MEMORY_SERVICE_URL || 'http://localhost:8
 const POLICY_SERVICE_URL = process.env.POLICY_SERVICE_URL || 'http://localhost:4000';
 const NGS_SERVICE_URL = process.env.NGS_SERVICE_URL || 'http://localhost:9000';
 
+const forwardJsonBody = (proxyReq: any, req: Request) => {
+  if (!req.body || !Object.keys(req.body).length) {
+    return;
+  }
+
+  const bodyData = JSON.stringify(req.body);
+  proxyReq.setHeader('Content-Type', 'application/json');
+  proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+  proxyReq.write(bodyData);
+};
+
 // Middleware
 app.use(cors());
 
@@ -193,6 +204,11 @@ app.use(
     pathRewrite: {
       '^/api/auth': '/auth',
     },
+    onProxyReq: (proxyReq, req) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
+    },
     onError: (err, req, res: any) => {
       console.error('Auth service proxy error:', err.message);
       res.status(503).json({
@@ -214,6 +230,9 @@ app.use(
       '^/api/billing': '/billing',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -246,6 +265,9 @@ app.use(
       '^/api/usage': '/usage',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -278,6 +300,9 @@ app.use(
       '^/api/chat': '/chat',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -310,6 +335,9 @@ app.use(
       '^/api/memory': '/memory',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -345,6 +373,9 @@ app.use(
       '^/api/ngs': '/ngs',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -378,6 +409,9 @@ app.use(
       '^/api/mcp': '/mcp',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
