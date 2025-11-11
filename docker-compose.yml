@@ -123,6 +123,7 @@ services:
     volumes:
       - ./services/auth-billing:/app
       - /app/node_modules
+    command: sh -c "npm install && npm run build && npm start"
   
   intelligence:
     build:
