@@ -4,7 +4,7 @@ Pytest configuration and fixtures for Intelligence service tests
 import pytest
 import os
 from typing import Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
 from uuid import uuid4
@@ -14,8 +14,12 @@ os.environ["TESTING"] = "1"
 os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL", "postgresql://localhost:5432/novacore_test")
 os.environ["REDIS_URL"] = os.getenv("TEST_REDIS_URL", "redis://localhost:6379/1")
 
-from app.database import Base, get_db
-from app.main import app
+from app.database import get_db
+
+# Import app from root main.py
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from main import app
 
 
 @pytest.fixture(scope="session")
@@ -24,13 +28,29 @@ def test_engine():
     database_url = os.getenv("TEST_DATABASE_URL", "postgresql://localhost:5432/novacore_test")
     engine = create_engine(database_url)
     
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
+    # Create usage_ledger table for tests if it doesn't exist
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS usage_ledger (
+                id SERIAL PRIMARY KEY,
+                user_id UUID NOT NULL,
+                resource_type VARCHAR(50) NOT NULL,
+                amount INTEGER NOT NULL,
+                metadata JSONB,
+                timestamp TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_usage_ledger_user_date 
+            ON usage_ledger(user_id, DATE(timestamp));
+        """))
+        conn.commit()
     
     yield engine
     
-    # Drop all tables after tests
-    Base.metadata.drop_all(bind=engine)
+    # Clean up tables after tests
+    with engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS usage_ledger CASCADE;"))
+        conn.commit()
     engine.dispose()
 
 
