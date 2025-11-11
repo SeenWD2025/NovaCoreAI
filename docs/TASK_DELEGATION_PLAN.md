@@ -197,10 +197,11 @@ Services currently trust network-level isolation without cryptographic verificat
   - Endpoint: `POST /auth/service/refresh`
   - Automatic renewal before expiration
   - Logging for audit trail
-- [ ] Test service auth implementation (2 hours)
-  - Unit tests for token generation
-  - Unit tests for token verification
-  - Integration tests for renewal
+- [x] Test service auth implementation (2 hours) ✅ COMPLETE
+  - Unit tests for token generation ✅
+  - Unit tests for token verification ✅
+  - Integration tests for renewal ✅
+  - Files: `service-auth.service.spec.ts`, `service-auth.controller.spec.ts`
 
 **Full-Stack Specialist (Gateway):**
 - [x] Implement service auth middleware (4 hours) ✅ COMPLETE
@@ -213,10 +214,11 @@ Services currently trust network-level isolation without cryptographic verificat
   - All `/api/memory/*` routes
   - All `/api/policy/*` routes
   - All `/api/ngs/*` routes
-- [ ] Test gateway service auth (2 hours)
-  - Test unauthorized calls return 403
-  - Test authorized calls pass through
-  - Test expired tokens rejected
+- [x] Test gateway service auth (2 hours) ✅ COMPLETE
+  - Test unauthorized calls return 403 ✅
+  - Test authorized calls pass through ✅
+  - Test expired tokens rejected ✅
+  - File: `services/gateway/src/__tests__/service-auth.test.ts` (17 tests passing)
 
 **Full-Stack Specialist (Python Services):**
 - [x] Create shared Python service auth module (6 hours) ✅ COMPLETE
@@ -260,7 +262,7 @@ Services currently trust network-level isolation without cryptographic verificat
 - [x] All services validate X-Service-Token header ✅ COMPLETE
 - [x] Service tokens expire after 24 hours ✅ COMPLETE
 - [x] Unauthorized calls return 403 with clear error message ✅ COMPLETE
-- [ ] Integration tests pass for cross-service calls ⚠️ PENDING
+- [x] Integration tests pass for cross-service calls ✅ COMPLETE (61 tests passing)
 - [x] Service token renewal works automatically ✅ COMPLETE
 - [x] Documentation complete ✅ COMPLETE
 - [x] Security audit passed ✅ PASSED (See SECURITY_AUDIT_REPORT.md)
