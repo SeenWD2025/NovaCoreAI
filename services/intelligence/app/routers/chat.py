@@ -167,7 +167,7 @@ async def send_message(
     )
     
     # Record usage in ledger for billing/quota tracking
-    SessionService.record_usage_ledger(
+    usage_service.record_usage(
         db, user_id, "llm_tokens", tokens_used,
         metadata={
             "session_id": str(session_id),
@@ -177,7 +177,7 @@ async def send_message(
     )
     
     # Record message count for quota enforcement
-    SessionService.record_usage_ledger(
+    usage_service.record_usage(
         db, user_id, "messages", 1,
         metadata={
             "session_id": str(session_id),
@@ -321,7 +321,7 @@ async def stream_message(
             
             # Record usage in ledger for billing/quota tracking
             try:
-                SessionService.record_usage_ledger(
+                usage_service.record_usage(
                     db, user_id, "llm_tokens", tokens_used,
                     metadata={
                         "session_id": str(session_id),
@@ -332,7 +332,7 @@ async def stream_message(
                 )
                 
                 # Record message count for quota enforcement
-                SessionService.record_usage_ledger(
+                usage_service.record_usage(
                     db, user_id, "messages", 1,
                     metadata={
                         "session_id": str(session_id),
