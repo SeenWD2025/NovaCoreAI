@@ -1,6 +1,47 @@
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
+import type {
+  AxiosError,
+  AxiosResponse,
+  InternalAxiosRequestConfig,
+} from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const DEFAULT_BASE_PATH = '/api';
+
+const resolveApiBaseUrl = () => {
+  if (import.meta.env.DEV) {
+    // When running the Vite dev server, stay on the same origin and let the
+    // dev proxy forward calls to the gateway container.
+    return DEFAULT_BASE_PATH;
+  }
+
+  const raw = import.meta.env.VITE_API_URL;
+
+  if (!raw) {
+    return `http://localhost:5000${DEFAULT_BASE_PATH}`;
+  }
+
+  try {
+    const parsed = new URL(raw);
+
+    if (!parsed.pathname || parsed.pathname === '/') {
+      parsed.pathname = DEFAULT_BASE_PATH;
+    }
+
+    // Ensure we do not end with a trailing slash to avoid double slashes when
+    // axios appends request paths.
+    return parsed.toString().replace(/\/$/, '');
+  } catch (error) {
+    const sanitized = raw.replace(/\/$/, '');
+    if (sanitized.startsWith('http')) {
+      return sanitized.includes(DEFAULT_BASE_PATH)
+        ? sanitized
+        : `${sanitized}${DEFAULT_BASE_PATH}`;
+    }
+    return sanitized || DEFAULT_BASE_PATH;
+  }
+};
+
+const API_URL = resolveApiBaseUrl();
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -12,23 +53,23 @@ export const api = axios.create({
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error: AxiosError) => Promise.reject(error)
 );
 
 // Response interceptor for error handling and token refresh
 api.interceptors.response.use(
-  (response) => response,
+  (response: AxiosResponse) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as any;
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+    };
 
     // If 401 and not already retrying, attempt to refresh token
     if (error.response?.status === 401 && !originalRequest._retry) {
