@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, HttpException, HttpStatus, NotFoundException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -12,6 +12,10 @@ import { LoginDto } from './dto/login.dto';
 export class AuthService {
   private readonly MAX_LOGIN_ATTEMPTS = 5;
   private readonly LOCKOUT_DURATION_MINUTES = 15;
+  private readonly PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
+  private readonly PASSWORD_RESET_RATE_LIMIT_ATTEMPTS = 5;
+  private readonly PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS = 60 * 15;
+  private readonly logger = new Logger(AuthService.name);
 
   constructor(
     private readonly db: DatabaseService,
@@ -145,6 +149,134 @@ export class AuthService {
       },
       accessToken,
       refreshToken,
+    };
+  }
+
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      throw new HttpException('Email is required', HttpStatus.BAD_REQUEST);
+    }
+
+    const rateLimitKey = `password_reset:${normalizedEmail}`;
+    const attemptsStr = await this.redisService.get(rateLimitKey);
+    const attempts = attemptsStr ? parseInt(attemptsStr, 10) : 0;
+
+    if (attempts >= this.PASSWORD_RESET_RATE_LIMIT_ATTEMPTS) {
+      const ttl = await this.redisService.getClient().ttl(rateLimitKey);
+      const minutesRemaining = Math.max(1, Math.ceil(ttl / 60));
+
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: `Too many password reset requests. Please try again in ${minutesRemaining} minute(s).`,
+          retryAfter: ttl,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const result = await this.db.query(
+      'SELECT id, email FROM users WHERE email = $1',
+      [normalizedEmail],
+    );
+
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      const token = this.generatePasswordResetToken();
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + this.PASSWORD_RESET_TOKEN_EXPIRY_MINUTES);
+
+      await this.db.query(
+        `UPDATE users
+         SET password_reset_token = $1,
+             password_reset_token_expires_at = $2,
+             updated_at = NOW()
+         WHERE id = $3`,
+        [token, expiresAt, user.id],
+      );
+
+      const emailSent = await this.emailService.sendPasswordResetEmail(user.email, token);
+
+      if (!emailSent) {
+        this.logger.error(`Failed to dispatch password reset email for ${user.email}`);
+        throw new HttpException(
+          'We could not send password reset instructions right now. Please try again later.',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+    }
+
+    await this.redisService.setWithExpiry(
+      rateLimitKey,
+      (attempts + 1).toString(),
+      this.PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS,
+    );
+
+    return {
+      message: 'If that email address exists in our system, we sent password reset instructions.',
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    if (!token || token.trim() === '') {
+      throw new HttpException('Invalid password reset token', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      throw new HttpException('Password must be at least 8 characters long', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.db.query(
+      `SELECT id, email, password_reset_token_expires_at
+       FROM users
+       WHERE password_reset_token = $1`,
+      [token],
+    );
+
+    if (result.rows.length === 0) {
+      throw new HttpException('Invalid or expired password reset token', HttpStatus.BAD_REQUEST);
+    }
+
+    const user = result.rows[0];
+
+    if (!user.password_reset_token_expires_at) {
+      throw new HttpException('Invalid or expired password reset token', HttpStatus.BAD_REQUEST);
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(user.password_reset_token_expires_at);
+
+    if (now > expiresAt) {
+      await this.db.query(
+        `UPDATE users
+         SET password_reset_token = NULL,
+             password_reset_token_expires_at = NULL,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [user.id],
+      );
+
+      throw new HttpException('Password reset token has expired. Please request a new one.', HttpStatus.BAD_REQUEST);
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await this.db.query(
+      `UPDATE users
+       SET password_hash = $1,
+           password_reset_token = NULL,
+           password_reset_token_expires_at = NULL,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [passwordHash, user.id],
+    );
+
+    await this.redisService.resetLoginAttempts(user.email);
+
+    return {
+      message: 'Password reset successfully. You can now log in with your new credentials.',
     };
   }
 
@@ -393,5 +525,9 @@ export class AuthService {
     return {
       message: 'Verification email sent successfully. Please check your inbox.',
     };
+  }
+
+  private generatePasswordResetToken(): string {
+    return crypto.randomBytes(32).toString('hex');
   }
 }

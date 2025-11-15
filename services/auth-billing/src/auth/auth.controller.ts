@@ -5,6 +5,8 @@ import { RateLimitGuard, RateLimit } from './rate-limit.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { authLoginTotal, authRegistrationTotal } from '../metrics';
 
 @Controller('auth')
@@ -38,6 +40,23 @@ export class AuthController {
   @Post('refresh')
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refreshAccessToken(refreshTokenDto.refreshToken);
+  }
+
+  @Post('request-password-reset')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({
+    points: 5,
+    duration: 15 * 60,
+    keyPrefix: 'password_reset_request',
+    useIp: true,
+  })
+  async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.password);
   }
 
   @UseGuards(JwtAuthGuard)

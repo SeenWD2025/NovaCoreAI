@@ -1,32 +1,74 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useCurriculumStore } from '@/stores/curriculumStore';
-import { 
-  Trophy, 
-  Zap, 
-  BookOpen, 
-  CheckCircle, 
+import {
+  Trophy,
+  Zap,
+  BookOpen,
+  CheckCircle,
   Target,
   Award,
   TrendingUp,
-  Calendar
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function ProgressTracker() {
-  const { progress, achievements, levels, fetchProgress, fetchAchievements, fetchLevels } = useCurriculumStore();
+  const {
+    progress,
+    achievements,
+    fetchProgress,
+    fetchAchievements,
+    fetchLevels,
+    error,
+    isLoading,
+  } = useCurriculumStore();
 
   useEffect(() => {
     fetchProgress();
     fetchAchievements();
     fetchLevels();
-  }, []);
+  }, [fetchProgress, fetchAchievements, fetchLevels]);
+
+  const handleRetry = () => {
+    fetchProgress();
+    fetchAchievements();
+    fetchLevels();
+  };
 
   if (!progress) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-800"></div>
-      </div>
-    );
+    if (error) {
+      return (
+        <div className="max-w-3xl mx-auto">
+          <div className="card bg-red-50 border-red-200">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-full bg-red-100 text-red-700">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-red-700 mb-1">Unable to load your progress</h2>
+                <p className="text-red-600 mb-4">{error}</p>
+                <button className="btn-primary" onClick={handleRetry}>
+                  Retry loading
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-800"></div>
+        </div>
+      );
+    }
+  }
+
+  if (!progress) {
+    return null;
   }
 
   const completedLevels = progress.current_level - 1;

@@ -31,6 +31,10 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 # Security constants
 MAX_MESSAGE_LENGTH = 10000  # Maximum message length in characters
+FALLBACK_RESPONSE = (
+    "NovaCoreAI is still warming up. Please try again in a moment while we bring "
+    "the intelligence service online."
+)
 
 
 def get_user_id(x_user_id: Optional[str] = Header(None)) -> UUID:
@@ -93,10 +97,6 @@ async def send_message(
     # Update message with sanitized version
     message.message = sanitized_message
     
-    # Check if Ollama is ready
-    if not ollama_service.is_ready:
-        raise HTTPException(status_code=503, detail="LLM service not ready")
-    
     # Get or create session
     if message.session_id:
         session = SessionService.get_session(db, message.session_id)
@@ -105,6 +105,39 @@ async def send_message(
         session_id = message.session_id
     else:
         session_id = SessionService.create_session(db, user_id, settings.llm_model)
+
+    def build_fallback_response() -> ChatResponse:
+        latency_ms = int((time.time() - start_time) * 1000)
+        try:
+            SessionService.store_prompt(
+                db,
+                session_id,
+                user_id,
+                message.message,
+                FALLBACK_RESPONSE,
+                0,
+                latency_ms,
+            )
+        except Exception as store_error:
+            logger.warning(
+                "Failed to record fallback prompt",
+                extra={"error": str(store_error), "session_id": str(session_id)},
+            )
+
+        return ChatResponse(
+            response=FALLBACK_RESPONSE,
+            session_id=session_id,
+            tokens_used=0,
+            latency_ms=latency_ms,
+        )
+
+    # Check if Ollama is ready before doing any downstream work
+    if not ollama_service.is_ready:
+        logger.warning(
+            "Ollama not ready; returning fallback response",
+            extra={"session_id": str(session_id)},
+        )
+        return build_fallback_response()
     
     # Build context from memory service if requested
     context = ""
@@ -156,6 +189,12 @@ async def send_message(
         temperature=0.7,
         max_tokens=2000
     )
+    if not response_text.strip():
+        logger.error(
+            "LLM returned empty response; using fallback",
+            extra={"session_id": str(session_id)}
+        )
+        return build_fallback_response()
     
     # Calculate actual tokens used
     tokens_used = token_counter.count_tokens(full_prompt + response_text)

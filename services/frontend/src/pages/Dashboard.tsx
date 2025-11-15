@@ -18,7 +18,13 @@ import EmailVerificationBanner from '@/components/EmailVerificationBanner';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
-  const { progress, achievements, fetchProgress, fetchAchievements } = useCurriculumStore();
+  const {
+    progress,
+    achievements,
+    error,
+    fetchProgress,
+    fetchAchievements,
+  } = useCurriculumStore();
   const [currentLevelLessons, setCurrentLevelLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +34,7 @@ export default function Dashboard() {
       setLoading(false);
     };
     loadData();
-  }, []);
+  }, [fetchProgress, fetchAchievements]);
 
   useEffect(() => {
     if (progress?.current_level) {
@@ -48,15 +54,24 @@ export default function Dashboard() {
     );
   }
 
+  const safeAchievements = Array.isArray(achievements) ? achievements : [];
   const progressPercent = progress?.progress_percent || 0;
   const currentLevel = progress?.current_level_info;
   const nextLevel = progress?.next_level_info;
-  const recentAchievements = achievements.slice(0, 3);
+  const recentAchievements = safeAchievements.slice(0, 3);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Email Verification Banner */}
       <EmailVerificationBanner isVerified={user?.email_verified} />
+
+      {error && (
+        <div className="card bg-red-50 border border-red-200">
+          <p className="text-sm text-red-700">
+            We couldn't load your latest progress data. Please refresh the page or try again later.
+          </p>
+        </div>
+      )}
 
       {/* Welcome Header */}
       <div className="card bg-gradient-to-r from-primary-800 to-primary-600 text-white">
@@ -115,7 +130,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Achievements</p>
-                <p className="text-2xl font-bold text-gray-900">{achievements.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{safeAchievements.length}</p>
               </div>
             </div>
           </div>

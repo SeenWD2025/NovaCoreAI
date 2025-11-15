@@ -13,33 +13,49 @@ export class EmailService {
     this.fromEmail = process.env.EMAIL_FROM || 'noreply@novacore.ai';
     this.frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-    // Configure email transporter based on environment
-    // In development, use console logging (Ethereal for testing)
-    // In production, use actual SMTP service (SendGrid, AWS SES, etc.)
-    if (process.env.NODE_ENV === 'production') {
-      this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASSWORD,
-        },
-      });
-    } else {
-      // Development mode: log emails to console
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.ETHEREAL_USER || 'test@ethereal.email',
-          pass: process.env.ETHEREAL_PASSWORD || 'test',
-        },
-      });
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPassword = process.env.SMTP_PASSWORD;
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+    const smtpSecure = process.env.SMTP_SECURE === 'true';
 
-      this.logger.warn('Email service running in development mode. Emails will be logged but not sent.');
+    const hasSmtpCredentials = Boolean(smtpHost && smtpUser && smtpPassword);
+
+    if (process.env.NODE_ENV === 'production' && hasSmtpCredentials) {
+      this.logger.log('Email service using configured SMTP transport (production mode).');
+      this.transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPassword,
+        },
+      });
+      return;
     }
+
+    if (hasSmtpCredentials) {
+      this.logger.log('Email service using configured SMTP transport (non-production mode).');
+      this.transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPassword,
+        },
+      });
+      return;
+    }
+
+    // Fallback: stream transport keeps messages local, ensuring dev/test environments succeed
+    this.logger.warn('Email service using stream transport. Emails will be logged but not sent.');
+    this.transporter = nodemailer.createTransport({
+      streamTransport: true,
+      newline: 'unix',
+      buffer: true,
+    });
   }
 
   /**
@@ -63,7 +79,13 @@ export class EmailService {
       
       if (process.env.NODE_ENV !== 'production') {
         this.logger.log(`Verification email sent to ${email}`);
-        this.logger.log(`Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+          this.logger.log(`Preview URL: ${previewUrl}`);
+        }
+        if ((info as any).message) {
+          this.logger.debug(`Email payload: ${(info as any).message.toString()}`);
+        }
         this.logger.log(`Verification URL: ${verificationUrl}`);
       }
 
@@ -95,7 +117,13 @@ export class EmailService {
       
       if (process.env.NODE_ENV !== 'production') {
         this.logger.log(`Password reset email sent to ${email}`);
-        this.logger.log(`Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+          this.logger.log(`Preview URL: ${previewUrl}`);
+        }
+        if ((info as any).message) {
+          this.logger.debug(`Email payload: ${(info as any).message.toString()}`);
+        }
       }
 
       return true;

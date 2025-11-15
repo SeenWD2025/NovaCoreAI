@@ -230,9 +230,6 @@ app.use(
       '^/api/billing': '/billing',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-        forwardJsonBody(proxyReq, req as Request);
-      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -242,6 +239,9 @@ app.use(
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
         proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
       }
     },
     onError: (err, req, res: any) => {
@@ -265,9 +265,6 @@ app.use(
       '^/api/usage': '/usage',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-        forwardJsonBody(proxyReq, req as Request);
-      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -277,6 +274,9 @@ app.use(
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
         proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
       }
     },
     onError: (err, req, res: any) => {
@@ -300,9 +300,6 @@ app.use(
       '^/api/chat': '/chat',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-        forwardJsonBody(proxyReq, req as Request);
-      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -312,6 +309,9 @@ app.use(
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
         proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
       }
     },
     onError: (err, req, res: any) => {
@@ -335,9 +335,6 @@ app.use(
       '^/api/memory': '/memory',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-        forwardJsonBody(proxyReq, req as Request);
-      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -350,6 +347,9 @@ app.use(
         // Note: User tier should be fetched from auth service in production
         // For now, we'll let the memory service handle tier lookup
         proxyReq.setHeader('X-User-Tier', 'free_trial'); // TODO: Fetch actual tier
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
       }
     },
     onError: (err, req, res: any) => {
@@ -373,9 +373,6 @@ app.use(
       '^/api/ngs': '/ngs',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-        forwardJsonBody(proxyReq, req as Request);
-      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -385,6 +382,9 @@ app.use(
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
         proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
       }
     },
     onError: (err, req, res: any) => {
@@ -409,9 +409,6 @@ app.use(
       '^/api/mcp': '/mcp',
     },
     onProxyReq: (proxyReq, req: AuthRequest) => {
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-        forwardJsonBody(proxyReq, req as Request);
-      }
       // Add service-to-service authentication token
       if (gatewayServiceToken) {
         proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
@@ -421,6 +418,9 @@ app.use(
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
         proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
       }
     },
     onError: (err, req, res: any) => {
