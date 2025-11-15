@@ -315,8 +315,8 @@ alertmanager:
 
 ## Monitoring Checklist
 
-- [ ] All services exposing metrics
-- [ ] Prometheus scraping all targets
+- [x] All services exposing metrics *(verified 2025-11-15 after enabling intelligence, MCP, NGS)*
+- [x] Prometheus scraping all targets *(all targets healthy as of 2025-11-15)*
 - [ ] Grafana dashboards configured
 - [ ] Alert rules defined
 - [ ] AlertManager configured (production)
@@ -324,7 +324,7 @@ alertmanager:
 - [ ] Data retention configured
 - [ ] Backup strategy for dashboards
 - [ ] Access controls configured
-- [ ] Documentation updated
+- [x] Documentation updated *(status review 2025-11-15)*
 
 ## Resources
 

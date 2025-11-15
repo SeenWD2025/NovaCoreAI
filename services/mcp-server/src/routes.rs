@@ -1,9 +1,11 @@
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::errors::McpError;
 use crate::models::*;
 use crate::services::{IntelligenceServiceClient, MemoryServiceClient};
+use crate::metrics;
 
 pub fn configure_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -12,7 +14,27 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
             .route("/context/fetch", web::post().to(fetch_context))
             .route("/memory/log", web::post().to(log_memory))
             .route("/task/submit", web::post().to(submit_task))
+            .route("/metrics", web::get().to(export_metrics))
     );
+}
+
+async fn export_metrics() -> Result<HttpResponse, McpError> {
+    let start = Instant::now();
+    match metrics::gather_metrics() {
+        Ok(buffer) => {
+            metrics::observe_request("/mcp/metrics", "success", start.elapsed());
+            Ok(HttpResponse::Ok()
+                .content_type("text/plain; version=0.0.4")
+                .body(buffer))
+        }
+        Err(err) => {
+            metrics::observe_request("/mcp/metrics", "error", start.elapsed());
+            Err(McpError::InternalError(format!(
+                "failed to encode metrics: {}",
+                err
+            )))
+        }
+    }
 }
 
 /// GET /mcp/health
@@ -21,6 +43,7 @@ async fn health_check(
     memory_client: web::Data<Arc<MemoryServiceClient>>,
     intelligence_client: web::Data<Arc<IntelligenceServiceClient>>,
 ) -> Result<HttpResponse, McpError> {
+    let start = Instant::now();
     log::info!("Health check requested");
 
     let memory_ok = memory_client.health_check().await;
@@ -37,6 +60,8 @@ async fn health_check(
         intelligence_service: intelligence_ok,
     };
 
+    metrics::observe_request("/mcp/health", "success", start.elapsed());
+
     Ok(HttpResponse::Ok().json(response))
 }
 
@@ -47,9 +72,16 @@ async fn fetch_context(
     request: web::Json<ContextFetchRequest>,
     memory_client: web::Data<Arc<MemoryServiceClient>>,
 ) -> Result<HttpResponse, McpError> {
+    let start = Instant::now();
+    let endpoint = "/mcp/context/fetch";
     // Extract user_id from request
-    let user_id = crate::middleware::extract_user_id(&req)
-        .ok_or_else(|| McpError::Unauthorized("User ID not found in request".to_string()))?;
+    let user_id = match crate::middleware::extract_user_id(&req) {
+        Some(id) => id,
+        None => {
+            metrics::observe_request(endpoint, "error", start.elapsed());
+            return Err(McpError::Unauthorized("User ID not found in request".to_string()));
+        }
+    };
 
     log::info!("Fetching context for file: {} (user: {})", request.file_path, user_id);
 
@@ -62,9 +94,16 @@ async fn fetch_context(
 
     // Search memories
     let limit = request.limit.unwrap_or(5);
-    let memories = memory_client
+    let memories = match memory_client
         .search_memories(&user_id, &query, Some(limit))
-        .await?;
+        .await
+    {
+        Ok(memories) => memories,
+        Err(err) => {
+            metrics::observe_request(endpoint, "error", start.elapsed());
+            return Err(err);
+        }
+    };
 
     // Build context summary
     let context_summary = if memories.is_empty() {
@@ -82,6 +121,8 @@ async fn fetch_context(
         context_summary,
     };
 
+    metrics::observe_request(endpoint, "success", start.elapsed());
+
     Ok(HttpResponse::Ok().json(response))
 }
 
@@ -92,9 +133,16 @@ async fn log_memory(
     request: web::Json<MemoryLogRequest>,
     memory_client: web::Data<Arc<MemoryServiceClient>>,
 ) -> Result<HttpResponse, McpError> {
+    let start = Instant::now();
+    let endpoint = "/mcp/memory/log";
     // Extract user_id from request
-    let user_id = crate::middleware::extract_user_id(&req)
-        .ok_or_else(|| McpError::Unauthorized("User ID not found in request".to_string()))?;
+    let user_id = match crate::middleware::extract_user_id(&req) {
+        Some(id) => id,
+        None => {
+            metrics::observe_request(endpoint, "error", start.elapsed());
+            return Err(McpError::Unauthorized("User ID not found in request".to_string()));
+        }
+    };
 
     log::info!(
         "Logging memory: {} action on {} (user: {})",
@@ -121,7 +169,7 @@ async fn log_memory(
     ]);
 
     // Store memory
-    let memory_id = memory_client
+    let memory_id = match memory_client
         .store_memory(
             &user_id,
             "code_interaction",
@@ -130,13 +178,22 @@ async fn log_memory(
             request.outcome.as_deref(),
             tags,
         )
-        .await?;
+        .await
+    {
+        Ok(id) => id,
+        Err(err) => {
+            metrics::observe_request(endpoint, "error", start.elapsed());
+            return Err(err);
+        }
+    };
 
     let response = MemoryLogResponse {
         memory_id: memory_id.clone(),
         stored: true,
         message: format!("Memory {} stored successfully", memory_id),
     };
+
+    metrics::observe_request(endpoint, "success", start.elapsed());
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -148,9 +205,16 @@ async fn submit_task(
     request: web::Json<TaskSubmitRequest>,
     intelligence_client: web::Data<Arc<IntelligenceServiceClient>>,
 ) -> Result<HttpResponse, McpError> {
+    let start = Instant::now();
+    let endpoint = "/mcp/task/submit";
     // Extract user_id from request
-    let user_id = crate::middleware::extract_user_id(&req)
-        .ok_or_else(|| McpError::Unauthorized("User ID not found in request".to_string()))?;
+    let user_id = match crate::middleware::extract_user_id(&req) {
+        Some(id) => id,
+        None => {
+            metrics::observe_request(endpoint, "error", start.elapsed());
+            return Err(McpError::Unauthorized("User ID not found in request".to_string()));
+        }
+    };
 
     log::info!("Submitting task for user: {}", user_id);
 
@@ -165,15 +229,24 @@ async fn submit_task(
     };
 
     // Send to intelligence service with memory enabled
-    let result = intelligence_client
+    let result = match intelligence_client
         .send_message(&user_id, &message, request.session_id, true)
-        .await?;
+        .await
+    {
+        Ok(result) => result,
+        Err(err) => {
+            metrics::observe_request(endpoint, "error", start.elapsed());
+            return Err(err);
+        }
+    };
 
     let response = TaskSubmitResponse {
         session_id: result.session_id,
         response: result.response,
         tokens_used: result.tokens_used,
     };
+
+    metrics::observe_request(endpoint, "success", start.elapsed());
 
     Ok(HttpResponse::Ok().json(response))
 }

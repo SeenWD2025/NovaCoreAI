@@ -14,7 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./shared/schemas:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-noble}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-noble} -d ${POSTGRES_DB:-noble_novacore}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -269,7 +269,7 @@ services:
 
   # Observability Stack
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.45.0
     container_name: noble-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -285,7 +285,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:9.5.17
     container_name: noble-grafana
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
@@ -302,7 +302,7 @@ services:
     restart: unless-stopped
 
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
+    image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: noble-postgres-exporter
     environment:
       - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
@@ -314,7 +314,7 @@ services:
     restart: unless-stopped
 
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.62.0
     container_name: noble-redis-exporter
     environment:
       - REDIS_ADDR=redis://redis:6379
@@ -326,7 +326,7 @@ services:
     restart: unless-stopped
 
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.7.0
     container_name: noble-node-exporter
     command:
       - '--path.procfs=/host/proc'

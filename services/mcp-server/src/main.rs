@@ -1,4 +1,5 @@
 mod config;
+mod metrics;
 mod models;
 mod routes;
 mod services;

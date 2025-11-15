@@ -1,11 +1,12 @@
 """Intelligence Core Service - Main Application."""
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
 import structlog
 from contextlib import asynccontextmanager
 from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.config import settings
 from app.database import test_connection
@@ -88,7 +89,13 @@ instrumentator = Instrumentator(
     inprogress_labels=True,
 )
 
-instrumentator.instrument(app).expose(app, endpoint="/metrics")
+instrumentator.instrument(app)
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    """Expose Prometheus metrics for the intelligence service."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/health", response_model=HealthResponse)

@@ -4,7 +4,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
 	"noble-ngs-curriculum/internal/config"
 	"noble-ngs-curriculum/internal/database"
@@ -12,10 +14,36 @@ import (
 	"noble-ngs-curriculum/internal/services"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var (
+	httpRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ngs_http_requests_total",
+			Help: "Total HTTP requests processed by the NGS curriculum service.",
+		},
+		[]string{"method", "route", "status"},
+	)
+
+	httpRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "ngs_http_request_duration_seconds",
+			Help:    "HTTP request latency for the NGS curriculum service.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"route"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(httpRequests, httpRequestDuration)
+}
 
 func main() {
 	// Load configuration
@@ -42,6 +70,32 @@ func main() {
 	app := fiber.New(fiber.Config{
 		AppName:      "Noble Growth School (NGS) Curriculum v1.0.0",
 		ErrorHandler: customErrorHandler,
+	})
+
+	// Prometheus metrics endpoint
+	app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
+
+	// Record basic request metrics (skip /metrics to avoid recursion)
+	app.Use(func(c *fiber.Ctx) error {
+		start := time.Now()
+		err := c.Next()
+
+		if route := c.Route(); route != nil && route.Path == "/metrics" {
+			return err
+		}
+
+		routePattern := "unmatched"
+		if route := c.Route(); route != nil {
+			routePattern = route.Path
+		} else {
+			routePattern = c.Path()
+		}
+
+		status := strconv.Itoa(c.Response().StatusCode())
+		httpRequests.WithLabelValues(c.Method(), routePattern, status).Inc()
+		httpRequestDuration.WithLabelValues(routePattern).Observe(time.Since(start).Seconds())
+
+		return err
 	})
 
 	// Middleware
