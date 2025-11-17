@@ -5,3 +5,5 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 httpx==0.25.2
 PyJWT==2.8.0
+ruff==0.1.6
+mypy==1.7.1
