@@ -21,6 +21,10 @@ RUN npm install --no-audit --no-fund || npm install --no-audit --no-fund --prefe
 # Copy rest of the source
 COPY . .
 
+# Create non-root user and switch to it
+RUN addgroup -g 1000 appuser && adduser -D -u 1000 -G appuser appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 5000
 
 CMD ["npm", "run", "dev"]
