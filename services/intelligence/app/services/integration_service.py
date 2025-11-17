@@ -3,9 +3,11 @@ import httpx
 import logging
 from typing import Dict, Any, Optional, List
 from uuid import UUID
+from datetime import datetime, timedelta
 from celery import Celery
 
 from app.config import settings
+from app.utils.service_auth import generate_service_token
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +15,13 @@ logger = logging.getLogger(__name__)
 # Cache for user tier info (to avoid hitting auth service on every request)
 _user_tier_cache = {}
 _cache_ttl_seconds = 300  # 5 minutes
+
+# Cache for service token reuse across outbound calls
+_service_token_cache = {
+    "token": None,
+    "expires_at": None,
+}
+_service_token_refresh_margin = timedelta(minutes=10)
 
 # Initialize Celery for reflection tasks
 celery_app = None
@@ -28,6 +37,42 @@ if settings.enable_reflection:
 class IntegrationService:
     """Service for integrating with Memory and Reflection services."""
     
+    @staticmethod
+    def _get_service_token() -> Optional[str]:
+        """Return a cached service token, refreshing it when close to expiry."""
+        cached = _service_token_cache.get("token")
+        expires_at: Optional[datetime] = _service_token_cache.get("expires_at")
+
+        if cached and expires_at:
+            if datetime.utcnow() + _service_token_refresh_margin < expires_at:
+                return cached
+
+        try:
+            token = generate_service_token("intelligence-service")
+        except ValueError:
+            logger.warning("SERVICE_JWT_SECRET not configured; skipping service token header")
+            _service_token_cache.update({"token": None, "expires_at": None})
+            return None
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.error("Failed to mint service token", extra={"error": str(exc)})
+            return None
+
+        _service_token_cache.update(
+            {
+                "token": token,
+                "expires_at": datetime.utcnow() + timedelta(hours=23),
+            }
+        )
+        return token
+
+    @staticmethod
+    def _build_headers(extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        headers = dict(extra or {})
+        token = IntegrationService._get_service_token()
+        if token:
+            headers.setdefault("X-Service-Token", token)
+        return headers
+
     @staticmethod
     async def get_user_tier(user_id: UUID) -> str:
         """
@@ -55,7 +100,7 @@ class IntegrationService:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(
                     f"{settings.auth_service_url}/auth/me",
-                    headers={"X-User-Id": str(user_id)}
+                    headers=IntegrationService._build_headers({"X-User-Id": str(user_id)})
                 )
                 
                 if response.status_code == 200:
@@ -103,7 +148,7 @@ class IntegrationService:
                 response = await client.get(
                     f"{settings.memory_service_url}/memory/context",
                     params=params,
-                    headers={"X-User-Id": str(user_id)}
+                    headers=IntegrationService._build_headers({"X-User-Id": str(user_id)})
                 )
                 
                 if response.status_code == 200:
@@ -190,7 +235,7 @@ class IntegrationService:
                 response = await client.post(
                     f"{settings.memory_service_url}/memory/stm/store",
                     params={"session_id": str(session_id)},
-                    headers={"X-User-Id": str(user_id)},
+                    headers=IntegrationService._build_headers({"X-User-Id": str(user_id)}),
                     json={
                         "input": input_text,
                         "output": output_text,

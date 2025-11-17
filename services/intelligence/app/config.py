@@ -1,16 +1,53 @@
 """Configuration management for Intelligence Core service."""
 import os
-from typing import Any, Dict, List, Optional
+import json
+from typing import Any, Dict, Iterable, List, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
+def _normalize_priority(items: Iterable[Any]) -> List[str]:
+    normalized: List[str] = []
+    for item in items:
+        text = str(item).strip()
+        if not text:
+            continue
+        normalized.append(text.lower())
+    return normalized or ["ollama"]
+
+
 def _coerce_priority(value: Any) -> List[str]:
-    if isinstance(value, list):
-        return [str(item).strip().lower() for item in value if str(item).strip()]
-    if isinstance(value, str) and value.strip():
-        return [item.strip().lower() for item in value.split(",") if item.strip()]
+    if value is None:
+        return ["ollama"]
+
+    if isinstance(value, (list, tuple, set)):
+        return _normalize_priority(value)
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return ["ollama"]
+
+        if text.startswith("[") or text.startswith("("):
+            try:
+                parsed = json.loads(text.replace("(", "[", 1).replace(")", "]", 1))
+                if isinstance(parsed, (list, tuple)):
+                    return _normalize_priority(parsed)
+            except json.JSONDecodeError:
+                pass
+
+        if text.startswith("{"):
+            try:
+                parsed_obj = json.loads(text)
+                if isinstance(parsed_obj, dict):
+                    return _normalize_priority(parsed_obj.keys())
+            except json.JSONDecodeError:
+                pass
+
+        parts = [part.strip() for part in text.split(",")]
+        return _normalize_priority(parts)
+
     return ["ollama"]
 
 
@@ -20,6 +57,17 @@ def _coerce_timeouts(value: Any) -> Dict[str, float]:
     mapping: Dict[str, float] = {}
     if isinstance(value, str):
         entries = [item.strip() for item in value.split(",") if item.strip()]
+        if value.strip().startswith("{"):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    return {
+                        str(k).strip().lower(): float(v)
+                        for k, v in parsed.items()
+                        if str(k).strip()
+                    }
+            except (json.JSONDecodeError, TypeError, ValueError):
+                entries = [item.strip() for item in value.split(",") if item.strip()]
         for entry in entries:
             if ":" not in entry:
                 continue
