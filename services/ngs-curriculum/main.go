@@ -104,7 +104,7 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} (${latency})\n",
 	}))
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
+		AllowOrigins: cfg.AllowedOrigins,
 		AllowHeaders: "Origin, Content-Type, Accept, X-User-Id, Authorization",
 		AllowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 	}))

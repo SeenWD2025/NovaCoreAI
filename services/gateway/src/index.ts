@@ -18,8 +18,22 @@ config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET || '';
+
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!process.env.SERVICE_JWT_SECRET) {
+  console.error('FATAL: SERVICE_JWT_SECRET environment variable is required');
+  process.exit(1);
+}
+const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET;
+
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : ['http://localhost:5173'];
 
 // Generate service token for Gateway (cache it and regenerate when needed)
 let gatewayServiceToken = '';
@@ -276,7 +290,19 @@ const forwardJsonBody = (proxyReq: any, req: Request) => {
 };
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 
 // Correlation ID middleware (must be early in the chain)
 app.use(correlationIdMiddleware);
@@ -412,6 +438,9 @@ const SERVICE_HEALTH_TARGETS = [
   { name: 'memory', baseUrl: MEMORY_SERVICE_URL },
   { name: 'ngs', baseUrl: NGS_SERVICE_URL },
   { name: 'policy', baseUrl: POLICY_SERVICE_URL },
+  { name: 'notes', baseUrl: NOTES_SERVICE_URL },
+  { name: 'study', baseUrl: STUDY_SERVICE_URL },
+  { name: 'quiz', baseUrl: QUIZ_SERVICE_URL },
 ];
 
 app.get('/api/status', express.json(), async (req, res) => {

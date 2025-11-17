@@ -11,6 +11,7 @@ type Config struct {
 	LevelUpXPThresholds []int
 	XPSources           map[string]int
 	AgentUnlockLevel    int
+	AllowedOrigins      string
 }
 
 func Load() *Config {
@@ -56,6 +57,7 @@ func Load() *Config {
 			"daily_streak":      20,
 		},
 		AgentUnlockLevel: getEnvInt("AGENT_UNLOCK_LEVEL", 12),
+		AllowedOrigins:   getEnv("ALLOWED_ORIGINS", "http://localhost:5173"),
 	}
 }
 

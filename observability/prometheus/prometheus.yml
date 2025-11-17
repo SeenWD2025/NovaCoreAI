@@ -87,6 +87,33 @@ scrape_configs:
           layer: 'integration'
     metrics_path: '/mcp/metrics'
 
+  # Notes API service
+  - job_name: 'notes-api'
+    static_configs:
+      - targets: ['notes-api:8085']
+        labels:
+          service: 'notes-api'
+          layer: 'backend'
+    metrics_path: '/metrics'
+
+  # Study Engine service
+  - job_name: 'study-engine'
+    static_configs:
+      - targets: ['study-engine:8090']
+        labels:
+          service: 'study-engine'
+          layer: 'backend'
+    metrics_path: '/metrics'
+
+  # Quiz Engine service
+  - job_name: 'quiz-engine'
+    static_configs:
+      - targets: ['quiz-engine:8091']
+        labels:
+          service: 'quiz-engine'
+          layer: 'backend'
+    metrics_path: '/metrics'
+
   # PostgreSQL exporter
   - job_name: 'postgres'
     static_configs:

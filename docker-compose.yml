@@ -104,9 +104,6 @@ services:
       - /app/node_modules
     command: sh -c "npm install && npm run dev"
 
-  # Service stubs - These are minimal implementations showing architecture
-  # Full implementations will be added in their respective phases
-  
   auth-billing:
     build:
       context: ./services/auth-billing
@@ -215,6 +212,7 @@ services:
       - PORT=9000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173}
     ports:
       - "9000:9000"
     depends_on:
