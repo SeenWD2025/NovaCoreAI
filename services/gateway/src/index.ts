@@ -2,7 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { config } from 'dotenv';
-import { createServer } from 'http';
+import { createServer, request as httpRequest } from 'http';
+import { request as httpsRequest } from 'https';
 import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -42,6 +43,226 @@ const NGS_SERVICE_URL = process.env.NGS_SERVICE_URL || 'http://localhost:9000';
 const NOTES_SERVICE_URL = process.env.NOTES_SERVICE_URL || 'http://localhost:8085';
 const STUDY_SERVICE_URL = process.env.STUDY_SERVICE_URL || 'http://localhost:8090';
 const QUIZ_SERVICE_URL = process.env.QUIZ_SERVICE_URL || 'http://localhost:8091';
+
+type ServiceStatus = 'online' | 'offline' | 'degraded';
+
+interface ServiceHealthResult {
+  name: string;
+  status: ServiceStatus;
+  latencyMs?: number;
+  detailStatus?: string;
+  error?: string;
+}
+
+interface JsonRequestOptions {
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+}
+
+const ensureTrailingSlash = (value: string) => (value.endsWith('/') ? value : `${value}/`);
+
+const jsonGet = <T = unknown>(targetUrl: string, options: JsonRequestOptions = {}) =>
+  new Promise<{ statusCode?: number; data?: T; raw?: string }>((resolve, reject) => {
+    try {
+      const url = new URL(targetUrl);
+      const requestFn = url.protocol === 'https:' ? httpsRequest : httpRequest;
+      const req = requestFn(
+        {
+          protocol: url.protocol,
+          hostname: url.hostname,
+          port: url.port,
+          path: `${url.pathname}${url.search}`,
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            ...options.headers,
+          },
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk) => {
+            if (Buffer.isBuffer(chunk)) {
+              chunks.push(chunk);
+            } else if (typeof chunk === 'string') {
+              chunks.push(Buffer.from(chunk));
+            } else {
+              chunks.push(Buffer.from(chunk));
+            }
+          });
+          res.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf-8');
+            if (!raw) {
+              resolve({ statusCode: res.statusCode });
+              return;
+            }
+            try {
+              resolve({ statusCode: res.statusCode, data: JSON.parse(raw) as T, raw });
+            } catch {
+              resolve({ statusCode: res.statusCode, raw });
+            }
+          });
+        }
+      );
+
+      const timeoutMs = options.timeoutMs ?? 4000;
+      req.setTimeout(timeoutMs, () => {
+        req.destroy(new Error('Request timed out'));
+      });
+
+      req.on('error', (err) => {
+        reject(err);
+      });
+
+      req.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+const checkServiceHealth = async (name: string, baseUrl: string): Promise<ServiceHealthResult> => {
+  const startedAt = Date.now();
+  try {
+    const healthUrl = new URL('health', ensureTrailingSlash(baseUrl)).toString();
+    const { statusCode, data } = await jsonGet<{ status?: string }>(healthUrl, { timeoutMs: 3000 });
+    const latencyMs = Date.now() - startedAt;
+    if (statusCode && statusCode >= 200 && statusCode < 300) {
+      const normalized = typeof data?.status === 'string' ? data.status.toLowerCase() : undefined;
+      const isHealthy = normalized === undefined || normalized === 'healthy';
+      return {
+        name,
+        status: isHealthy ? 'online' : 'degraded',
+        latencyMs,
+        detailStatus: normalized,
+      };
+    }
+    return {
+      name,
+      status: 'offline',
+      latencyMs,
+      error: statusCode ? `Unexpected status ${statusCode}` : 'Health check returned no status code',
+    };
+  } catch (error) {
+    return {
+      name,
+      status: 'offline',
+      error: error instanceof Error ? error.message : 'Health check failed',
+    };
+  }
+};
+
+const userTierCache = new Map<string, { tier: string; expiresAt: number }>();
+const USER_TIER_CACHE_TTL_MS = 60_000;
+const MAX_USER_TIER_CACHE_ENTRIES = 1000;
+
+const getCachedTier = (userId: string) => {
+  const cached = userTierCache.get(userId);
+  if (!cached) {
+    return undefined;
+  }
+  if (cached.expiresAt < Date.now()) {
+    userTierCache.delete(userId);
+    return undefined;
+  }
+  return cached.tier;
+};
+
+const setCachedTier = (userId: string, tier: string) => {
+  if (userTierCache.size >= MAX_USER_TIER_CACHE_ENTRIES) {
+    const oldestKey = userTierCache.keys().next().value;
+    if (oldestKey) {
+      userTierCache.delete(oldestKey);
+    }
+  }
+  userTierCache.set(userId, {
+    tier,
+    expiresAt: Date.now() + USER_TIER_CACHE_TTL_MS,
+  });
+};
+
+const fetchUserTier = async (authorizationHeader: string): Promise<string | undefined> => {
+  try {
+    const meUrl = new URL('auth/me', ensureTrailingSlash(AUTH_SERVICE_URL)).toString();
+    const { statusCode, data } = await jsonGet<{ subscription_tier?: string; user?: { subscription_tier?: string } }>(
+      meUrl,
+      {
+        headers: {
+          Authorization: authorizationHeader,
+        },
+        timeoutMs: 4000,
+      }
+    );
+
+    if (statusCode !== 200 || !data) {
+      if (statusCode && statusCode >= 500) {
+        logger.warn({
+          message: 'Auth service tier lookup failed',
+          statusCode,
+        });
+      }
+      return undefined;
+    }
+
+    if (typeof data.subscription_tier === 'string') {
+      return data.subscription_tier;
+    }
+
+    if (data.user && typeof data.user.subscription_tier === 'string') {
+      return data.user.subscription_tier;
+    }
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to resolve user tier from auth service',
+      error: error instanceof Error ? error.message : 'unknown error',
+    });
+  }
+
+  return undefined;
+};
+
+const ensureUserTier = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (!req.user || !req.user.userId) {
+    next();
+    return;
+  }
+
+  if (req.user.subscription_tier) {
+    setCachedTier(req.user.userId, req.user.subscription_tier);
+    next();
+    return;
+  }
+
+  const cachedTier = getCachedTier(req.user.userId);
+  if (cachedTier) {
+    req.user.subscription_tier = cachedTier;
+    next();
+    return;
+  }
+
+  const authorizationHeaderRaw = req.headers['authorization'];
+  const authorizationHeader = Array.isArray(authorizationHeaderRaw)
+    ? authorizationHeaderRaw[0]
+    : authorizationHeaderRaw;
+
+  if (!authorizationHeader) {
+    next();
+    return;
+  }
+
+  try {
+    const tier = await fetchUserTier(authorizationHeader);
+    if (tier) {
+      req.user.subscription_tier = tier;
+      setCachedTier(req.user.userId, tier);
+    }
+  } catch (error) {
+    logger.warn({
+      message: 'User tier lookup unexpectedly failed',
+      error: error instanceof Error ? error.message : 'unknown error',
+    });
+  }
+
+  next();
+};
 
 const forwardJsonBody = (proxyReq: any, req: Request) => {
   if (!req.body || !Object.keys(req.body).length) {
@@ -112,6 +333,7 @@ interface AuthRequest extends Request {
     userId: string;
     email: string;
     role: string;
+    subscription_tier?: string;
   };
 }
 
@@ -135,6 +357,7 @@ const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) 
       userId: decoded.sub,
       email: decoded.email,
       role: decoded.role,
+      ...(decoded.subscription_tier && { subscription_tier: decoded.subscription_tier }),
     };
     next();
   });
@@ -155,6 +378,7 @@ const optionalAuth = (req: AuthRequest, res: Response, next: NextFunction) => {
         userId: decoded.sub,
         email: decoded.email,
         role: decoded.role,
+        ...(decoded.subscription_tier && { subscription_tier: decoded.subscription_tier }),
       };
     }
     next();
@@ -182,20 +406,70 @@ app.get('/health', express.json(), (req, res) => {
 });
 
 // Status endpoint (needs JSON parser)
-app.get('/api/status', express.json(), (req, res) => {
-  res.json({
-    message: 'Noble NovaCoreAI API Gateway',
-    architecture: 'microservices',
-    phase: 3,
-    services: {
-      gateway: 'online',
-      auth: 'online',
-      intelligence: 'stub',
-      memory: 'stub',
-      ngs: 'stub',
-      policy: 'not-started',
-    },
-  });
+const SERVICE_HEALTH_TARGETS = [
+  { name: 'auth', baseUrl: AUTH_SERVICE_URL },
+  { name: 'intelligence', baseUrl: INTELLIGENCE_SERVICE_URL },
+  { name: 'memory', baseUrl: MEMORY_SERVICE_URL },
+  { name: 'ngs', baseUrl: NGS_SERVICE_URL },
+  { name: 'policy', baseUrl: POLICY_SERVICE_URL },
+];
+
+app.get('/api/status', express.json(), async (req, res) => {
+  const startedAt = Date.now();
+
+  try {
+    const results = await Promise.all(
+      SERVICE_HEALTH_TARGETS.map((target) => checkServiceHealth(target.name, target.baseUrl))
+    );
+
+    const services: Record<string, ServiceStatus> = { gateway: 'online' };
+    const details: Record<string, { status: ServiceStatus; latencyMs?: number; detailStatus?: string; error?: string }> = {
+      gateway: { status: 'online' },
+    };
+
+    for (const result of results) {
+      services[result.name] = result.status;
+      details[result.name] = {
+        status: result.status,
+        ...(typeof result.latencyMs === 'number' ? { latencyMs: result.latencyMs } : {}),
+        ...(result.detailStatus ? { detailStatus: result.detailStatus } : {}),
+        ...(result.error ? { error: result.error } : {}),
+      };
+    }
+
+    const overallStatus: ServiceStatus = results.some((item) => item.status === 'offline')
+      ? 'offline'
+      : results.some((item) => item.status === 'degraded')
+      ? 'degraded'
+      : 'online';
+
+    res.json({
+      message: 'Noble NovaCoreAI API Gateway',
+      architecture: 'microservices',
+      phase: 3,
+      checkedAt: new Date().toISOString(),
+      responseTimeMs: Date.now() - startedAt,
+      status: overallStatus,
+      services,
+      details,
+    });
+  } catch (error) {
+    logger.error({
+      message: 'Failed to compute aggregated service status',
+      error: error instanceof Error ? error.message : 'unknown error',
+    });
+    res.status(500).json({
+      message: 'Noble NovaCoreAI API Gateway',
+      architecture: 'microservices',
+      phase: 3,
+      checkedAt: new Date().toISOString(),
+      status: 'offline',
+      services: { gateway: 'online' },
+      details: {
+        gateway: { status: 'online' },
+      },
+    });
+  }
 });
 
 // Auth service proxy (no auth required for login/register)
@@ -364,6 +638,7 @@ app.use(
 app.use(
   '/api/memory',
   authenticateToken,
+  ensureUserTier,
   createProxyMiddleware({
     target: MEMORY_SERVICE_URL,
     changeOrigin: true,
@@ -380,9 +655,9 @@ app.use(
         proxyReq.setHeader('X-User-Id', req.user.userId);
         proxyReq.setHeader('X-User-Email', req.user.email);
         proxyReq.setHeader('X-User-Role', req.user.role);
-        // Note: User tier should be fetched from auth service in production
-        // For now, we'll let the memory service handle tier lookup
-        proxyReq.setHeader('X-User-Tier', 'free_trial'); // TODO: Fetch actual tier
+        if (req.user.subscription_tier) {
+          proxyReq.setHeader('X-User-Tier', req.user.subscription_tier);
+        }
       }
       if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
         forwardJsonBody(proxyReq, req as Request);

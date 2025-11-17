@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api';
 
 interface UsageBreakdown {
@@ -43,11 +43,7 @@ const Usage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState(30);
 
-  useEffect(() => {
-    fetchUsageData();
-  }, [timeRange]);
-
-  const fetchUsageData = async () => {
+  const fetchUsageData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -72,7 +68,11 @@ const Usage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange]);
+
+  useEffect(() => {
+    void fetchUsageData();
+  }, [fetchUsageData]);
 
   const getProgressBarColor = (percentage: number): string => {
     if (percentage >= 100) return 'bg-red-500';

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Brain, Search, Clock, Zap, Database, Filter, Eye } from 'lucide-react';
 import type { Memory } from '@/types/chat';
 import { memoryService } from '@/services/chat';
+import type { MemoryStats } from '@/services/chat';
 
 type MemoryTier = 'stm' | 'itm' | 'ltm' | 'all';
 
@@ -11,19 +12,10 @@ export default function MemoryViz() {
   const [selectedTier, setSelectedTier] = useState<MemoryTier>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<MemoryStats | null>(null);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
 
-  useEffect(() => {
-    loadMemories();
-    loadStats();
-  }, [selectedTier]);
-
-  useEffect(() => {
-    filterMemories();
-  }, [memories, searchQuery, selectedTier]);
-
-  const loadMemories = async () => {
+  const loadMemories = useCallback(async () => {
     setLoading(true);
     try {
       const params = selectedTier !== 'all' ? { tier: selectedTier, limit: 50 } : { limit: 50 };
@@ -34,35 +26,40 @@ export default function MemoryViz() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedTier]);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const data = await memoryService.getStats();
       setStats(data);
     } catch (error) {
       console.error('Failed to load stats:', error);
     }
-  };
+  }, []);
 
-  const filterMemories = () => {
+  useEffect(() => {
+    void loadMemories();
+    void loadStats();
+  }, [loadMemories, loadStats]);
+
+  useEffect(() => {
     let filtered = memories;
 
-    // Filter by tier
     if (selectedTier !== 'all') {
-      filtered = filtered.filter(m => m.tier === selectedTier);
+      filtered = filtered.filter((memory) => memory.tier === selectedTier);
     }
 
-    // Filter by search query
     if (searchQuery) {
-      filtered = filtered.filter(m =>
-        m.input_context.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.output_response.toLowerCase().includes(searchQuery.toLowerCase())
+      const searchLower = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (memory) =>
+          memory.input_context.toLowerCase().includes(searchLower) ||
+          memory.output_response.toLowerCase().includes(searchLower)
       );
     }
 
     setFilteredMemories(filtered);
-  };
+  }, [memories, searchQuery, selectedTier]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;

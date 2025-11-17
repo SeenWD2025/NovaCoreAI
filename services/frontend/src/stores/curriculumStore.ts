@@ -8,6 +8,15 @@ import type {
 } from '@/types/curriculum';
 import curriculumService from '@/services/curriculum';
 
+const resolveApiError = (error: unknown, fallback: string): string => {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const maybeResponse = (error as { response?: { data?: { message?: string } } }).response;
+    return maybeResponse?.data?.message || fallback;
+  }
+
+  return fallback;
+};
+
 interface CurriculumState {
   progress: UserProgress | null;
   levels: CurriculumLevel[];
@@ -26,7 +35,7 @@ interface CurriculumState {
   clearError: () => void;
 }
 
-export const useCurriculumStore = create<CurriculumState>((set, get) => ({
+export const useCurriculumStore = create<CurriculumState>((set) => ({
   progress: null,
   levels: [],
   currentLesson: null,
@@ -40,8 +49,8 @@ export const useCurriculumStore = create<CurriculumState>((set, get) => ({
     try {
       const progress = await curriculumService.getProgress();
       set({ progress, isLoading: false });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Failed to fetch progress';
+    } catch (error) {
+      const errorMessage = resolveApiError(error, 'Failed to fetch progress');
       set({ error: errorMessage, isLoading: false });
     }
   },
@@ -51,8 +60,8 @@ export const useCurriculumStore = create<CurriculumState>((set, get) => ({
     try {
       const { levels } = await curriculumService.getLevels();
       set({ levels, isLoading: false });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Failed to fetch levels';
+    } catch (error) {
+      const errorMessage = resolveApiError(error, 'Failed to fetch levels');
       set({ error: errorMessage, isLoading: false });
     }
   },
@@ -62,8 +71,8 @@ export const useCurriculumStore = create<CurriculumState>((set, get) => ({
     try {
       const { achievements } = await curriculumService.getAchievements();
       set({ achievements, isLoading: false });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Failed to fetch achievements';
+    } catch (error) {
+      const errorMessage = resolveApiError(error, 'Failed to fetch achievements');
       set({ error: errorMessage, isLoading: false });
     }
   },
@@ -73,8 +82,8 @@ export const useCurriculumStore = create<CurriculumState>((set, get) => ({
     try {
       const { leaderboard } = await curriculumService.getLeaderboard(limit);
       set({ leaderboard, isLoading: false });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Failed to fetch leaderboard';
+    } catch (error) {
+      const errorMessage = resolveApiError(error, 'Failed to fetch leaderboard');
       set({ error: errorMessage, isLoading: false });
     }
   },

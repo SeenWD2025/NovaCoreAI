@@ -30,7 +30,7 @@ const resolveApiBaseUrl = () => {
     // Ensure we do not end with a trailing slash to avoid double slashes when
     // axios appends request paths.
     return parsed.toString().replace(/\/$/, '');
-  } catch (error) {
+  } catch {
     const sanitized = raw.replace(/\/$/, '');
     if (sanitized.startsWith('http')) {
       return sanitized.includes(DEFAULT_BASE_PATH)

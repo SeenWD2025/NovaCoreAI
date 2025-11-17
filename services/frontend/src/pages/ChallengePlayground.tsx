@@ -11,7 +11,7 @@ import {
   Code,
   FileCode
 } from 'lucide-react';
-import type { Challenge, ChallengeSubmission } from '@/types/curriculum';
+import type { Challenge, ChallengeTestResult } from '@/types/curriculum';
 import curriculumService from '@/services/curriculum';
 import { showSuccess, showError, showXPGain } from '@/utils/toast';
 import { useCurriculumStore } from '@/stores/curriculumStore';
@@ -22,30 +22,31 @@ export default function ChallengePlayground() {
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [code, setCode] = useState('');
   const [output, setOutput] = useState('');
-  const [testResults, setTestResults] = useState<any[]>([]);
+  const [testResults, setTestResults] = useState<ChallengeTestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id) {
-      loadChallenge(id);
+    if (!id) {
+      return;
     }
-  }, [id]);
+    const fetchChallenge = async () => {
+      setLoading(true);
+      try {
+        const challengeData = await curriculumService.getChallenge(id);
+        setChallenge(challengeData);
+        setCode(challengeData.starter_code || '// Write your code here\n');
+      } catch (error) {
+        console.error('Failed to load challenge:', error);
+        showError('Failed to load challenge');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const loadChallenge = async (challengeId: string) => {
-    setLoading(true);
-    try {
-      const challengeData = await curriculumService.getChallenge(challengeId);
-      setChallenge(challengeData);
-      setCode(challengeData.starter_code || '// Write your code here\n');
-    } catch (error) {
-      console.error('Failed to load challenge:', error);
-      showError('Failed to load challenge');
-    } finally {
-      setLoading(false);
-    }
-  };
+    void fetchChallenge();
+  }, [id]);
 
   const handleRunTests = async () => {
     setIsRunning(true);
@@ -57,7 +58,7 @@ export default function ChallengePlayground() {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Mock test results
-      const mockResults = challenge?.test_cases?.map((tc: any, idx: number) => ({
+      const mockResults = challenge?.test_cases?.map((tc, idx) => ({
         test: `Test ${idx + 1}`,
         passed: Math.random() > 0.3,
         expected: tc.expected,
@@ -67,6 +68,7 @@ export default function ChallengePlayground() {
       setTestResults(mockResults);
       setOutput('Tests completed. Check results below.');
     } catch (error) {
+      console.error('Failed to run tests:', error);
       showError('Failed to run tests');
       setOutput('Error running tests');
     } finally {
@@ -87,9 +89,15 @@ export default function ChallengePlayground() {
       if (result.xp_awarded) {
         showXPGain(result.xp_awarded);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to submit challenge:', error);
-      showError(error.response?.data?.message || 'Failed to submit challenge');
+      const fallbackMessage = 'Failed to submit challenge';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const maybeResponse = (error as { response?: { data?: { message?: string } } }).response;
+        showError(maybeResponse?.data?.message || fallbackMessage);
+      } else {
+        showError(fallbackMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -119,6 +127,19 @@ export default function ChallengePlayground() {
 
   const passedTests = testResults.filter(r => r.passed).length;
   const totalTests = testResults.length;
+
+  const formatResultValue = (value: unknown): string => {
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch (serializationError) {
+      console.warn('Failed to stringify result value:', serializationError);
+      return String(value);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
@@ -162,10 +183,10 @@ export default function ChallengePlayground() {
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-2">Test Cases</h3>
                   <div className="space-y-2">
-                    {(challenge.test_cases as any[]).slice(0, 3).map((tc: any, idx: number) => (
+                    {challenge.test_cases.slice(0, 3).map((testCase, idx) => (
                       <div key={idx} className="p-3 bg-gray-50 rounded text-sm font-mono">
-                        <div className="text-gray-600">Input: {JSON.stringify(tc.input)}</div>
-                        <div className="text-gray-900">Output: {JSON.stringify(tc.expected)}</div>
+                        <div className="text-gray-600">Input: {JSON.stringify(testCase.input)}</div>
+                        <div className="text-gray-900">Output: {JSON.stringify(testCase.expected)}</div>
                       </div>
                     ))}
                   </div>
@@ -275,8 +296,8 @@ export default function ChallengePlayground() {
                       <span className="font-semibold text-gray-900">{result.test}</span>
                     </div>
                     <div className="text-sm text-gray-700">
-                      <div>Expected: {result.expected}</div>
-                      <div>Actual: {result.actual}</div>
+                      <div>Expected: {formatResultValue(result.expected)}</div>
+                      <div>Actual: {formatResultValue(result.actual)}</div>
                     </div>
                   </div>
                 ))}

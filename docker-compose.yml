@@ -67,6 +67,8 @@ services:
       context: ./services/gateway
       dockerfile: Dockerfile
     container_name: noble-gateway
+    env_file:
+      - ./.env
     environment:
       - PORT=5000
       - NODE_ENV=development
@@ -109,6 +111,8 @@ services:
     build:
       context: ./services/auth-billing
     container_name: noble-auth
+    env_file:
+      - ./.env
     environment:
       - PORT=3001
       - NODE_ENV=development
@@ -142,6 +146,8 @@ services:
     build:
       context: ./services/intelligence
     container_name: noble-intelligence
+    env_file:
+      - ./.env
     environment:
       - PORT=8000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
@@ -184,6 +190,8 @@ services:
     build:
       context: ./services/memory
     container_name: noble-memory
+    env_file:
+      - ./.env
     environment:
       - PORT=8001
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
@@ -201,6 +209,8 @@ services:
     build:
       context: ./services/ngs-curriculum
     container_name: noble-ngs
+    env_file:
+      - ./.env
     environment:
       - PORT=9000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
@@ -230,6 +240,8 @@ services:
     build:
       context: ./services/noble-spirit
     container_name: noble-policy
+    env_file:
+      - ./.env
     environment:
       - PORT=4000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
@@ -244,6 +256,8 @@ services:
     build:
       context: ./services/reflection-worker
     container_name: noble-reflection
+    env_file:
+      - ./.env
     environment:
       - REDIS_URL=redis://redis:6379
       - CELERY_BROKER_URL=redis://redis:6379/2
@@ -264,6 +278,8 @@ services:
     build:
       context: ./services/distillation-worker
     container_name: noble-distillation
+    env_file:
+      - ./.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - MEMORY_SERVICE_URL=http://memory:8001
@@ -278,6 +294,8 @@ services:
     build:
       context: ./services/mcp-server
     container_name: noble-mcp
+    env_file:
+      - ./.env
     environment:
       - PORT=7000
       - MEMORY_SERVICE_URL=http://memory:8001
@@ -296,6 +314,8 @@ services:
     build:
       context: ./services/notes-api
     container_name: noble-notes
+    env_file:
+      - ./.env
     environment:
       - NOTES_HOST=0.0.0.0
       - NOTES_PORT=8085
@@ -318,6 +338,8 @@ services:
     build:
       context: ./services/study-engine
     container_name: noble-study
+    env_file:
+      - ./.env
     environment:
       - STUDY_HOST=0.0.0.0
       - STUDY_PORT=8090
@@ -342,6 +364,8 @@ services:
     build:
       context: ./services/quiz-engine
     container_name: noble-quiz
+    env_file:
+      - ./.env
     environment:
       - QUIZ_HOST=0.0.0.0
       - QUIZ_PORT=8091

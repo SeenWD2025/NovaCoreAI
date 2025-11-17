@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   Zap,
+  Notebook,
 } from 'lucide-react';
 
 export default function MainLayout() {
@@ -23,6 +24,7 @@ export default function MainLayout() {
   const navItems = [
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
     { to: '/levels', icon: BookOpen, label: 'Levels' },
+    { to: '/study', icon: Notebook, label: 'Study' },
     { to: '/progress', icon: Trophy, label: 'Progress' },
     { to: '/chat', icon: MessageSquare, label: 'Chat' },
     { to: '/memory', icon: Brain, label: 'Memory' },

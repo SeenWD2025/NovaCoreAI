@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Zap, MessageSquare, Database } from 'lucide-react';
 import usageService from '@/services/usage';
 
@@ -21,11 +21,7 @@ export default function QuotaCard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadQuota();
-  }, []);
-
-  const loadQuota = async () => {
+  const loadQuota = useCallback(async () => {
     try {
       setLoading(true);
       const response = await usageService.getTokenUsage();
@@ -48,13 +44,17 @@ export default function QuotaCard() {
         tier: 'free_trial', // Will be populated from getUserTier
       });
       setError(null);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load quota:', err);
       setError('Failed to load quota information');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadQuota();
+  }, [loadQuota]);
 
   if (loading) {
     return (

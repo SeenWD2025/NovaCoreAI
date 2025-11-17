@@ -5,6 +5,7 @@ import textwrap
 
 from ..models.quiz import QuizGenerationRequest
 from ..models.note_context import NoteContext
+from .prompt_adjustments import get_prompt_adjustment_state
 
 
 PROMPT_HEADER = "You are Nova Study Engine, generating quizzes for learners."
@@ -69,6 +70,8 @@ def build_quiz_prompt(
     note_summary = note.summary or "n/a"
     metadata_summary = "".join(f"{key}: {value}\n" for key, value in note.metadata.items()) if note.metadata else ""
 
+    adjustment_guidance = get_prompt_adjustment_state().render_guidance()
+
     prompt_body = f"""
 {PROMPT_HEADER}
 {PROMPT_SCHEMA}
@@ -90,7 +93,13 @@ Metadata:
 Note content:
 {context_block or note.raw_text or 'No additional content provided.'}
 """
-    return textwrap.dedent(prompt_body).strip()
+    prompt_text = textwrap.dedent(prompt_body).strip()
+
+    if adjustment_guidance:
+        prompt_text = (
+            f"{prompt_text}\n\nAdaptive guidance (learner feedback): {adjustment_guidance.strip()}"
+        )
+    return prompt_text
 
 
 __all__ = ["build_quiz_prompt"]

@@ -65,6 +65,8 @@ services:
   gateway:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-gateway:${IMAGE_TAG:-latest}
     container_name: noble-gateway
+    env_file:
+      - ./.env
     environment:
       - NODE_ENV=production
       - PORT=5000
@@ -94,6 +96,8 @@ services:
   auth-billing:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-auth-billing:${IMAGE_TAG:-latest}
     container_name: noble-auth
+    env_file:
+      - ./.env
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -115,6 +119,8 @@ services:
   intelligence:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-intelligence:${IMAGE_TAG:-latest}
     container_name: noble-intelligence
+    env_file:
+      - ./.env
     environment:
       - PORT=8000
       - DATABASE_URL=${DATABASE_URL}
@@ -156,6 +162,8 @@ services:
   memory:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-memory:${IMAGE_TAG:-latest}
     container_name: noble-memory
+    env_file:
+      - ./.env
     environment:
       - PORT=8001
       - DATABASE_URL=${DATABASE_URL}
@@ -174,6 +182,8 @@ services:
   noble-spirit:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-noble-spirit:${IMAGE_TAG:-latest}
     container_name: noble-policy
+    env_file:
+      - ./.env
     environment:
       - PORT=4000
       - DATABASE_URL=${DATABASE_URL}
@@ -190,6 +200,8 @@ services:
   ngs-curriculum:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-ngs-curriculum:${IMAGE_TAG:-latest}
     container_name: noble-ngs
+    env_file:
+      - ./.env
     environment:
       - PORT=9000
       - DATABASE_URL=${DATABASE_URL}
@@ -206,6 +218,8 @@ services:
   reflection-worker:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-reflection-worker:${IMAGE_TAG:-latest}
     container_name: noble-reflection
+    env_file:
+      - ./.env
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - CELERY_BROKER_URL=${REDIS_URL}/2
@@ -224,6 +238,8 @@ services:
   distillation-worker:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-distillation-worker:${IMAGE_TAG:-latest}
     container_name: noble-distillation
+    env_file:
+      - ./.env
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
@@ -241,6 +257,8 @@ services:
   mcp-server:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-mcp-server:${IMAGE_TAG:-latest}
     container_name: noble-mcp
+    env_file:
+      - ./.env
     environment:
       - PORT=7000
       - MEMORY_SERVICE_URL=http://memory:8001
@@ -260,6 +278,8 @@ services:
   notes-api:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-notes-api:${IMAGE_TAG:-latest}
     container_name: noble-notes
+    env_file:
+      - ./.env
     environment:
       - NOTES_HOST=0.0.0.0
       - NOTES_PORT=8085
@@ -281,6 +301,8 @@ services:
   study-engine:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-study-engine:${IMAGE_TAG:-latest}
     container_name: noble-study
+    env_file:
+      - ./.env
     environment:
       - STUDY_HOST=0.0.0.0
       - STUDY_PORT=8090
@@ -309,6 +331,8 @@ services:
   quiz-engine:
     image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-quiz-engine:${IMAGE_TAG:-latest}
     container_name: noble-quiz
+    env_file:
+      - ./.env
     environment:
       - QUIZ_HOST=0.0.0.0
       - QUIZ_PORT=8091

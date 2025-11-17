@@ -15,3 +15,19 @@ class QuizSessionNotFoundError(Exception):
 
 class QuizSessionPersistenceError(Exception):
     """Raised when a session cannot be persisted to the backing store."""
+
+
+class QuizSessionAlreadyCompletedError(Exception):
+    """Raised when attempting to modify a session that has already been completed."""
+
+
+class QuizSubmissionValidationError(Exception):
+    """Raised when a quiz submission payload cannot be processed."""
+
+
+class ReflectionFeedbackValidationError(Exception):
+    """Raised when reflection feedback input fails validation checks."""
+
+
+class ReflectionFeedbackPersistenceError(Exception):
+    """Raised when reflection feedback cannot be persisted."""

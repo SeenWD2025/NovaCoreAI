@@ -64,6 +64,7 @@
 - Cover with Pytest/Jest service tests for grading, plus integration tests simulating full session flow against an ephemeral PostgreSQL database and mocked Gemini.
 - Implement reflection feedback capture endpoint/workflow storing `quizRating`, `recommendationRating`, and optional `notes` per quiz session while guaranteeing cascade delete when users remove their accounts.
 - Add background or scheduled aggregation that reads only metadata (userId, quizId, timestamp, rating) to drive anonymized BI dashboards, writing daily rollups to `ai_performance_metrics_daily` (PostgreSQL) and exporting summarized views for BI consumers.
+- ✅ Nightly scheduler now runs this aggregation and emits structured alerts when rolling metrics degrade; configuration documented in `docs/dev/quiz-engine-api-guide.md`.
 - Build a manual backfill entry point that accepts start/end date ranges, runs idempotently, and is gated behind Nova.Study.Engine approval following any P1 incident.
 - Wire PagerDuty-triggered P2 incidents to broadcast Slack/email notifications to Customer Success and Product Management alongside Nova.Study.Engine.
 - Require four-eyes approval (two authorized engineers) before executing manual backfill scripts after a P1 incident.
@@ -116,6 +117,7 @@
 - Retention utilities to batch-flag `isDeleted` and propagate `deletedAt` timestamps during account erasure using SQL queries keyed by `user_id`.
 - Database indexing limited to metadata columns (`user_id`, `quiz_id`, `timestamp`, `score`/`rating`) with exclusion of recommendation text from indexes and analytics exports.
 - Prompt refinement pipeline referencing aggregated reflection feedback to tune Gemini system instructions when low ratings are detected.
+- ✅ Study Engine scheduler now consumes daily reflection analytics and appends adaptive guidance to prompts when thresholds are breached.
 - Weekly aggregation cycle evaluating 7-day rolling averages with automated alerts whenever ratings drop below thresholds (e.g., 3.5 stars) to trigger prompt review.
 - Incident routing: P2 alerts page Nova.Study.Engine when rolling averages drop below 3.5 stars; P1 alerts fire if nightly aggregation fails to publish daily metrics and must pause subsequent runs.
 - Aggregation failure playbook codified: 1) Detect & isolate (SRE/DevOps) 2) Diagnose & fix (Nova.Study.Engine) 3) Backfill metrics (Nova.Study.Engine) 4) Restore cadence (SRE/DevOps).

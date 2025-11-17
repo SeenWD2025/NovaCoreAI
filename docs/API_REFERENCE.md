@@ -1111,6 +1111,26 @@ Send and receive messages in real-time.
 
 ---
 
+## Quiz Engine Operational Query
+
+Ops teams can quickly validate stored quiz results with the following Postgres query (replace the `WHERE` clause to target a known session when required):
+
+```
+SELECT
+  session_id,
+  status,
+  results->>'totalScore' AS total_score,
+  results->>'requiresReview' AS requires_review,
+  jsonb_array_length(results->'recommendations') AS recommendation_count
+FROM quiz_sessions
+ORDER BY updated_at DESC
+LIMIT 5;
+```
+
+This is useful for confirming grading metadata (recommendations, pending written-review flags) in staging or production environments.
+
+---
+
 ## SDK Examples
 
 ### JavaScript/TypeScript

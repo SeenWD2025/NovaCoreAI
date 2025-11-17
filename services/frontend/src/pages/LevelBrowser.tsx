@@ -22,8 +22,9 @@ export default function LevelBrowser() {
       await Promise.all([fetchProgress(), fetchLevels()]);
       setLoading(false);
     };
-    loadData();
-  }, []);
+
+    void loadData();
+  }, [fetchLevels, fetchProgress]);
 
   const isLevelUnlocked = (levelNumber: number) => {
     if (!progress) return false;
@@ -44,16 +45,6 @@ export default function LevelBrowser() {
     } catch (error) {
       console.error('Failed to load lessons:', error);
     }
-  };
-
-  const getPhaseColor = (color: string) => {
-    const colors = {
-      blue: 'border-blue-200 bg-blue-50',
-      green: 'border-green-200 bg-green-50',
-      purple: 'border-purple-200 bg-purple-50',
-      orange: 'border-orange-200 bg-orange-50',
-    };
-    return colors[color as keyof typeof colors] || colors.blue;
   };
 
   const getPhaseHeaderColor = (color: string) => {

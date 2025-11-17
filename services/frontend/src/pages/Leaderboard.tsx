@@ -8,9 +8,9 @@ export default function Leaderboard() {
   const { leaderboard, progress, fetchLeaderboard, fetchProgress } = useCurriculumStore();
 
   useEffect(() => {
-    fetchLeaderboard(50);
-    fetchProgress();
-  }, []);
+    void fetchLeaderboard(50);
+    void fetchProgress();
+  }, [fetchLeaderboard, fetchProgress]);
 
   const getMedalIcon = (rank: number) => {
     switch (rank) {

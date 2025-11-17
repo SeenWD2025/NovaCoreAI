@@ -20,8 +20,16 @@ class QuizSessionRepository:
         return await asyncio.to_thread(func, *args, **kwargs)
 
     async def create_session(self, record: QuizSessionRecord) -> None:
+        await self._persist(record)
+
+    async def save_session(self, record: QuizSessionRecord) -> None:
+        await self._persist(record)
+
+    async def _persist(self, record: QuizSessionRecord) -> None:
         payload = record.model_dump(by_alias=True)
-        payload["quizSnapshot"] = record.quiz_snapshot.model_dump(by_alias=True)
+        payload["quizSnapshot"] = record.quiz_snapshot.model_dump(by_alias=True, mode="json")
+        if record.results is not None:
+            payload["results"] = record.results.model_dump(by_alias=True, mode="json")
 
         def _create() -> None:
             session: Session = self._session_factory()

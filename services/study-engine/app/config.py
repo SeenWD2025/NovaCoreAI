@@ -30,10 +30,16 @@ class StudyEngineSettings(BaseSettings):
     instrumentation_enabled: bool = True
 
     notes_service_url: str = "http://notes-api:8085"
+    quiz_engine_base_url: str = "http://quiz-engine:8091/api/quiz"
     database_url: str = "postgresql://noble:changeme@postgres:5432/noble_novacore"
     database_pool_size: int = 5
     database_max_overflow: int = 5
     quiz_artifacts_table: str = "study_quiz_artifacts"
+    prompt_adjustments_enabled: bool = True
+    prompt_adjustment_threshold: float = 3.4
+    prompt_adjustment_trend_days: int = 7
+    prompt_adjustment_scheduler_hour: int = 4
+    prompt_adjustment_scheduler_minute: int = 15
 
     model_config = SettingsConfigDict(env_prefix="STUDY_", env_file=".env", extra="ignore")
 

@@ -8,6 +8,15 @@ interface ChatResponse {
   latency_ms: number;
 }
 
+export interface MemoryStats {
+  total_memories: number;
+  stm_count: number;
+  itm_count: number;
+  ltm_count: number;
+  storage_used_mb: number;
+  storage_limit_mb: number;
+}
+
 export const chatService = {
   // Sessions
   getSessions: async (): Promise<{ sessions: ChatSession[]; count: number }> => {
@@ -77,14 +86,7 @@ export const memoryService = {
   },
 
   // Memory statistics
-  getStats: async (): Promise<{
-    total_memories: number;
-    stm_count: number;
-    itm_count: number;
-    ltm_count: number;
-    storage_used_mb: number;
-    storage_limit_mb: number;
-  }> => {
+  getStats: async (): Promise<MemoryStats> => {
     const response = await api.get('/memory/stats');
     return response.data;
   },

@@ -1,14 +1,14 @@
 import api from './api';
-import type { 
-  UserProgress, 
-  CurriculumLevel, 
-  Lesson, 
+import type {
+  UserProgress,
+  CurriculumLevel,
+  Lesson,
   LessonCompletion,
   Reflection,
   Challenge,
   ChallengeSubmission,
   Achievement,
-  LeaderboardEntry
+  LeaderboardEntry,
 } from '@/types/curriculum';
 
 export const curriculumService = {
@@ -18,7 +18,11 @@ export const curriculumService = {
     return response.data;
   },
 
-  awardXP: async (source: string, amount?: number, metadata?: any): Promise<{ new_level?: number; xp_awarded: number }> => {
+  awardXP: async (
+    source: string,
+    amount?: number,
+    metadata?: Record<string, unknown>
+  ): Promise<{ new_level?: number; xp_awarded: number }> => {
     const response = await api.post('/ngs/award-xp', { source, amount, metadata });
     return response.data;
   },
@@ -51,7 +55,7 @@ export const curriculumService = {
       score?: number;
       time_spent_seconds?: number;
       reflection_text?: string;
-      metadata?: any;
+      metadata?: Record<string, unknown>;
     }
   ): Promise<{ completion: LessonCompletion; new_level?: number; xp_awarded: number }> => {
     const response = await api.post(`/ngs/lessons/${lessonId}/complete`, data);

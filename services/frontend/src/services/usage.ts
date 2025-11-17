@@ -50,6 +50,15 @@ export interface TierInfo {
   tier: string;
 }
 
+export type MemoryUsageResponse = Record<string, unknown>;
+
+export interface MemoryQuotaResponse {
+  hasQuota: boolean;
+  message?: string;
+  limitBytes?: number;
+  [key: string]: unknown;
+}
+
 class UsageService {
   /**
    * Get comprehensive usage statistics
@@ -108,7 +117,7 @@ class UsageService {
   /**
    * Get memory-specific usage stats
    */
-  async getMemoryUsage(): Promise<any> {
+  async getMemoryUsage(): Promise<MemoryUsageResponse> {
     const response = await api.get('/memory/usage');
     return response.data;
   }
@@ -116,7 +125,7 @@ class UsageService {
   /**
    * Check memory storage quota
    */
-  async checkMemoryQuota(): Promise<any> {
+  async checkMemoryQuota(): Promise<MemoryQuotaResponse> {
     const response = await api.get('/memory/usage/quota-check');
     return response.data;
   }

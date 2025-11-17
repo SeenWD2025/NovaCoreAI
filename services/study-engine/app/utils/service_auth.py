@@ -5,13 +5,16 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional
 
-import jwt
+try:
+    import jwt  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    jwt = None
 
 
 def generate_service_token(service_name: str, ttl_hours: int = 24) -> Optional[str]:
     """Create a signed service token if the shared secret is configured."""
     secret = os.getenv("SERVICE_JWT_SECRET")
-    if not secret:
+    if not secret or jwt is None:
         return None
 
     now = datetime.utcnow()

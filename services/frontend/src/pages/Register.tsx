@@ -31,7 +31,7 @@ export default function Register() {
       await register(email, password);
       toast.success('Account created! Please check your email to verify your address.');
       navigate('/dashboard');
-    } catch (err) {
+    } catch {
       // Error is handled by the store
     }
   };

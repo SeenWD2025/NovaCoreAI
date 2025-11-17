@@ -19,7 +19,7 @@ export interface CurriculumLevel {
   level_number: number;
   title: string;
   description: string;
-  unlock_requirements?: any;
+  unlock_requirements?: Record<string, unknown>;
   xp_required: number;
 }
 
@@ -37,8 +37,8 @@ export interface Lesson {
   agent_unlock: string;
   xp_reward: number;
   estimated_minutes: number;
-  prerequisites?: any;
-  metadata?: any;
+  prerequisites?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   is_required: boolean;
   completed?: boolean;
   completed_at?: string;
@@ -54,7 +54,7 @@ export interface LessonCompletion {
   score?: number;
   time_spent_seconds?: number;
   reflection_text?: string;
-  completion_data?: any;
+  completion_data?: Record<string, unknown>;
   completed_at: string;
 }
 
@@ -80,12 +80,12 @@ export interface Challenge {
   challenge_type: 'coding' | 'design' | 'reflection' | 'collaboration';
   difficulty: 'easy' | 'medium' | 'hard' | 'expert';
   starter_code?: string;
-  test_cases?: any;
+  test_cases?: ChallengeTestCase[];
   solution_template?: string;
   xp_reward: number;
   time_limit_minutes?: number;
   tags?: string[];
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   is_active: boolean;
   created_at: string;
 }
@@ -95,7 +95,7 @@ export interface ChallengeSubmission {
   user_id: string;
   challenge_id: string;
   submission_code: string;
-  test_results?: any;
+  test_results?: ChallengeTestResult[];
   score?: number;
   passed: boolean;
   feedback?: string;
@@ -106,7 +106,7 @@ export interface Achievement {
   id: string;
   user_id: string;
   achievement_type: string;
-  achievement_data: any;
+  achievement_data: Record<string, unknown>;
   unlocked_at: string;
 }
 
@@ -115,4 +115,18 @@ export interface LeaderboardEntry {
   total_xp: number;
   current_level: number;
   rank: number;
+}
+
+export interface ChallengeTestCase {
+  input: unknown;
+  expected: unknown;
+  description?: string;
+}
+
+export interface ChallengeTestResult {
+  test: string;
+  passed: boolean;
+  expected: unknown;
+  actual: unknown;
+  message?: string;
 }

@@ -29,9 +29,23 @@ export default function LessonViewer() {
   const [timeSpent, setTimeSpent] = useState(0);
 
   useEffect(() => {
-    if (id) {
-      loadLesson(id);
+    if (!id) {
+      return;
     }
+
+    const fetchLesson = async () => {
+      setLoading(true);
+      try {
+        const lessonData = await curriculumService.getLesson(id);
+        setLesson(lessonData);
+      } catch (error) {
+        console.error('Failed to load lesson:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchLesson();
   }, [id]);
 
   useEffect(() => {
@@ -42,18 +56,6 @@ export default function LessonViewer() {
 
     return () => clearInterval(timer);
   }, []);
-
-  const loadLesson = async (lessonId: string) => {
-    setLoading(true);
-    try {
-      const lessonData = await curriculumService.getLesson(lessonId);
-      setLesson(lessonData);
-    } catch (error) {
-      console.error('Failed to load lesson:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleComplete = async () => {
     if (!lesson || !reflectionText.trim()) {
@@ -86,9 +88,15 @@ export default function LessonViewer() {
       setTimeout(() => {
         navigate('/levels');
       }, 1500);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to complete lesson:', error);
-      showError(error.response?.data?.message || 'Failed to complete lesson');
+      const fallbackMessage = 'Failed to complete lesson';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const maybeResponse = (error as { response?: { data?: { message?: string } } }).response;
+        showError(maybeResponse?.data?.message || fallbackMessage);
+      } else {
+        showError(fallbackMessage);
+      }
     } finally {
       setCompleting(false);
     }
