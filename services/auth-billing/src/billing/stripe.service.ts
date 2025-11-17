@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import Stripe from 'stripe';
 import { DatabaseService } from '../database/database.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class StripeService {
   private stripe: Stripe;
   private webhookSecret: string;
 
-  constructor(private readonly db: DatabaseService) {
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly emailService: EmailService,
+  ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
       apiVersion: '2023-10-16',
     });
@@ -170,6 +174,17 @@ export class StripeService {
     );
 
     console.log(`Subscription created for user ${userId}: ${tier}`);
+    
+    const userResult = await this.db.query(
+      'SELECT email FROM users WHERE id = $1',
+      [userId],
+    );
+    
+    if (userResult.rows.length > 0) {
+      const userEmail = userResult.rows[0].email;
+      await this.emailService.sendSubscriptionConfirmationEmail(userEmail, tier);
+      console.log(`Subscription confirmation email sent to ${userEmail}`);
+    }
   }
 
   private async handleSubscriptionUpdate(subscription: Stripe.Subscription) {
@@ -240,6 +255,17 @@ export class StripeService {
     );
 
     console.log(`Subscription canceled for user ${userId}`);
+    
+    const userResult = await this.db.query(
+      'SELECT email FROM users WHERE id = $1',
+      [userId],
+    );
+    
+    if (userResult.rows.length > 0) {
+      const userEmail = userResult.rows[0].email;
+      await this.emailService.sendSubscriptionCancellationEmail(userEmail);
+      console.log(`Subscription cancellation email sent to ${userEmail}`);
+    }
   }
 
   private async handlePaymentSuccess(invoice: Stripe.Invoice) {
@@ -262,7 +288,6 @@ export class StripeService {
   private async handlePaymentFailed(invoice: Stripe.Invoice) {
     console.error(`❌ Payment failed for subscription: ${invoice.subscription}`);
     
-    // You might want to send notification to user here
     if (invoice.subscription) {
       const userResult = await this.db.query(
         'SELECT user_id FROM subscriptions WHERE stripe_subscription_id = $1',
@@ -271,8 +296,19 @@ export class StripeService {
 
       if (userResult.rows.length > 0) {
         const userId = userResult.rows[0].user_id;
-        console.error(`Payment failure for user ${userId} - amount: $${(invoice.amount_due / 100).toFixed(2)}`);
-        // TODO: Send email notification to user
+        const amount = invoice.amount_due / 100;
+        console.error(`Payment failure for user ${userId} - amount: $${amount.toFixed(2)}`);
+        
+        const emailResult = await this.db.query(
+          'SELECT email FROM users WHERE id = $1',
+          [userId],
+        );
+        
+        if (emailResult.rows.length > 0) {
+          const userEmail = emailResult.rows[0].email;
+          await this.emailService.sendPaymentFailureEmail(userEmail, amount);
+          console.log(`Payment failure notification sent to ${userEmail}`);
+        }
       }
     }
   }
