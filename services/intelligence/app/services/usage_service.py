@@ -4,11 +4,14 @@ Handles usage_ledger table operations for billing and quota management.
 """
 
 import logging
+import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
+
+from app.utils.sanitize import sanitize_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,14 @@ class UsageService:
             True if successful, False otherwise
         """
         try:
+            sanitized_metadata: Optional[Dict[str, Any]] = None
+            if metadata is not None:
+                # Ensure metadata is safe and JSON serializable
+                sanitized_metadata = sanitize_metadata(metadata)
+                metadata_payload = json.dumps(sanitized_metadata)
+            else:
+                metadata_payload = None
+
             query = text("""
                 INSERT INTO usage_ledger (user_id, resource_type, amount, metadata, timestamp)
                 VALUES (:user_id, :resource_type, :amount, :metadata, :timestamp)
@@ -49,7 +60,7 @@ class UsageService:
                     "user_id": str(user_id),
                     "resource_type": resource_type,
                     "amount": amount,
-                    "metadata": metadata,
+                    "metadata": metadata_payload,
                     "timestamp": datetime.utcnow()
                 }
             )
@@ -59,7 +70,15 @@ class UsageService:
             return True
             
         except Exception as e:
-            logger.error(f"Failed to record usage: {e}")
+            logger.error(
+                "Failed to record usage",
+                extra={
+                    "error": str(e),
+                    "user_id": str(user_id),
+                    "resource_type": resource_type,
+                    "amount": amount,
+                },
+            )
             db.rollback()
             return False
     

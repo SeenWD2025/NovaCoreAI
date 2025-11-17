@@ -80,6 +80,9 @@ services:
       - POLICY_SERVICE_URL=http://noble-spirit:4000
       - NGS_SERVICE_URL=http://ngs-curriculum:9000
       - MCP_SERVICE_URL=http://mcp-server:7000
+      - NOTES_SERVICE_URL=http://notes-api:8085
+      - STUDY_SERVICE_URL=http://study-engine:8090
+      - QUIZ_SERVICE_URL=http://quiz-engine:8091
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     ports:
       - "5000:5000"
@@ -88,6 +91,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      notes-api:
+        condition: service_started
+      study-engine:
+        condition: service_started
+      quiz-engine:
+        condition: service_started
     volumes:
       - ./services/gateway:/app
       - /app/node_modules
@@ -136,9 +145,22 @@ services:
     environment:
       - PORT=8000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - TEST_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - LLM_MODEL=${LLM_MODEL:-mistral:instruct}
       - GPU_ENABLED=${GPU_ENABLED:-false}
+      - LLM_PROVIDER_PRIORITY=${LLM_PROVIDER_PRIORITY:-["ollama","gemini","openai"]}
+      - LLM_PROVIDER_TIMEOUTS=${LLM_PROVIDER_TIMEOUTS:-}
+      - LLM_PROVIDER_COOLDOWN_SEC=${LLM_PROVIDER_COOLDOWN_SEC:-60}
+      - LLM_PROVIDER_RETRY_LIMIT=${LLM_PROVIDER_RETRY_LIMIT:-2}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-models/gemini-2.5-flash-preview-09-2025}
+      - GEMINI_API_URL=${GEMINI_API_URL:-https://generativelanguage.googleapis.com}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_ORGANIZATION=${OPENAI_ORGANIZATION:-}
+      - OPENAI_PROJECT=${OPENAI_PROJECT:-}
       - FREE_TIER_TOKENS_DAY=${FREE_TIER_TOKENS_DAY:-1000}
       - BASIC_TIER_TOKENS_DAY=${BASIC_TIER_TOKENS_DAY:-50000}
       - PRO_TIER_TOKENS_DAY=${PRO_TIER_TOKENS_DAY:--1}
@@ -270,6 +292,75 @@ services:
         condition: service_started
       intelligence:
         condition: service_started
+  notes-api:
+    build:
+      context: ./services/notes-api
+    container_name: noble-notes
+    environment:
+      - NOTES_HOST=0.0.0.0
+      - NOTES_PORT=8085
+      - NOTES_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - NOTES_DATABASE_POOL_SIZE=5
+      - NOTES_DATABASE_MAX_OVERFLOW=5
+      - NOTES_NOTES_TABLE=structured_notes
+      - NOTES_RETENTION_TABLE=note_retention_policies
+      - NOTES_AUDIT_TABLE=note_audit_log
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/notes-api:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8085 --reload
+
+  study-engine:
+    build:
+      context: ./services/study-engine
+    container_name: noble-study
+    environment:
+      - STUDY_HOST=0.0.0.0
+      - STUDY_PORT=8090
+      - STUDY_NOTES_SERVICE_URL=http://notes-api:8085
+      - STUDY_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - STUDY_DATABASE_POOL_SIZE=5
+      - STUDY_DATABASE_MAX_OVERFLOW=5
+      - STUDY_QUIZ_ARTIFACTS_TABLE=study_quiz_artifacts
+      - STUDY_INTELLIGENCE_SERVICE_URL=http://gateway:5000/internal/intelligence
+    ports:
+      - "8090:8090"
+    depends_on:
+      notes-api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/study-engine:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8090 --reload
+
+  quiz-engine:
+    build:
+      context: ./services/quiz-engine
+    container_name: noble-quiz
+    environment:
+      - QUIZ_HOST=0.0.0.0
+      - QUIZ_PORT=8091
+      - QUIZ_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - QUIZ_DATABASE_POOL_SIZE=5
+      - QUIZ_DATABASE_MAX_OVERFLOW=5
+      - QUIZ_QUIZ_ARTIFACTS_TABLE=study_quiz_artifacts
+      - QUIZ_QUIZ_SESSIONS_TABLE=quiz_sessions
+      - QUIZ_STUDY_ENGINE_URL=http://study-engine:8090
+    ports:
+      - "8091:8091"
+    depends_on:
+      study-engine:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/quiz-engine:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8091 --reload
 
   # Observability Stack
   prometheus:

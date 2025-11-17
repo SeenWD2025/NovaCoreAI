@@ -1,5 +1,5 @@
 """Chat endpoints for Intelligence Core."""
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -10,10 +10,10 @@ import json
 
 from app.database import get_db
 from app.models.schemas import (
-    ChatMessage, ChatResponse, SessionListResponse, 
+    ChatMessage, ChatResponse, SessionListResponse,
     SessionHistoryResponse, SessionInfo, PromptInfo
 )
-from app.services.ollama_service import ollama_service
+from app.services.llm_router import llm_orchestrator, ProviderExhaustedError
 from app.services.session_service import SessionService
 from app.services.integration_service import integration_service
 from app.services.usage_service import usage_service
@@ -21,7 +21,7 @@ from app.utils.token_counter import token_counter
 from app.utils.service_auth import verify_service_token_dependency, ServiceTokenPayload
 from app.utils.sanitize import sanitize_message
 from app.utils.metrics import (
-    track_message_processing, track_tokens, track_memory_context, 
+    track_message_processing, track_tokens, track_memory_context,
     increment_active_sessions, decrement_active_sessions
 )
 from app.config import settings
@@ -72,6 +72,29 @@ def check_token_limit(db: Session, user_id: UUID, required_tokens: int, tier: st
         )
     
     return True
+
+
+@router.post("/sessions", response_model=SessionInfo, status_code=status.HTTP_201_CREATED)
+async def create_session_endpoint(
+    user_id: UUID = Depends(get_user_id),
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
+):
+    """Create a new chat session for the current user."""
+    session_id = SessionService.create_session(db, user_id, settings.llm_model)
+    session = SessionService.get_session(db, session_id)
+
+    if not session:
+        raise HTTPException(status_code=500, detail="Failed to create chat session")
+
+    return SessionInfo(
+        id=session["id"],
+        user_id=session["user_id"],
+        status=session["status"],
+        model_name=session["model_name"],
+        created_at=session["created_at"],
+        ended_at=session["ended_at"],
+    )
 
 
 @router.post("/message", response_model=ChatResponse)
@@ -132,9 +155,9 @@ async def send_message(
         )
 
     # Check if Ollama is ready before doing any downstream work
-    if not ollama_service.is_ready:
+    if not await llm_orchestrator.ensure_ready():
         logger.warning(
-            "Ollama not ready; returning fallback response",
+            "No LLM providers ready; returning fallback response",
             extra={"session_id": str(session_id)},
         )
         return build_fallback_response()
@@ -146,7 +169,7 @@ async def send_message(
         memory_context = await integration_service.get_memory_context(
             user_id=user_id,
             session_id=session_id if message.session_id else None,
-            limit=5
+            limit=5,
         )
         
         # Build context prompt from memory
@@ -183,22 +206,37 @@ async def send_message(
     
     # Generate response
     system_prompt = "You are Noble NovaCoreAI, an ethical AI assistant focused on truth, wisdom, and human flourishing. Provide thoughtful, helpful responses aligned with the Reclaimer Ethos."
-    response_text = await ollama_service.generate_response(
-        prompt=full_prompt,
-        system_prompt=system_prompt,
-        temperature=0.7,
-        max_tokens=2000
-    )
-    if not response_text.strip():
+    provider_name: Optional[str] = None
+    provider_model: Optional[str] = None
+    provider_latency_ms: Optional[int] = None
+
+    try:
+        provider_result = await llm_orchestrator.generate_response(
+            prompt=full_prompt,
+            system_prompt=system_prompt,
+            temperature=0.7,
+            max_tokens=2000,
+        )
+        response_text = provider_result.content
+        provider_name = provider_result.provider
+        provider_model = provider_result.model
+        provider_latency_ms = provider_result.latency_ms
+        if not response_text.strip():
+            logger.error(
+                "LLM returned empty response; using fallback",
+                extra={"session_id": str(session_id), "provider": provider_name},
+            )
+            return build_fallback_response()
+    except ProviderExhaustedError as exc:
         logger.error(
-            "LLM returned empty response; using fallback",
-            extra={"session_id": str(session_id)}
+            "All LLM providers exhausted; using fallback",
+            extra={"session_id": str(session_id), "error": str(exc)},
         )
         return build_fallback_response()
     
     # Calculate actual tokens used
     tokens_used = token_counter.count_tokens(full_prompt + response_text)
-    latency_ms = int((time.time() - start_time) * 1000)
+    latency_ms = provider_latency_ms if 'provider_latency_ms' in locals() else int((time.time() - start_time) * 1000)
     
     # Store the interaction
     SessionService.store_prompt(
@@ -207,21 +245,29 @@ async def send_message(
     
     # Record usage in ledger for billing/quota tracking
     usage_service.record_usage(
-        db, user_id, "llm_tokens", tokens_used,
+        db,
+        user_id,
+        "llm_tokens",
+        tokens_used,
         metadata={
             "session_id": str(session_id),
-            "model": settings.llm_model,
-            "latency_ms": latency_ms
-        }
+            "model": locals().get("provider_model", settings.llm_model),
+            "latency_ms": latency_ms,
+            "provider": locals().get("provider_name"),
+        },
     )
     
     # Record message count for quota enforcement
     usage_service.record_usage(
-        db, user_id, "messages", 1,
+        db,
+        user_id,
+        "messages",
+        1,
         metadata={
             "session_id": str(session_id),
-            "message_length": len(message.message)
-        }
+            "message_length": len(message.message),
+            "provider": locals().get("provider_name"),
+        },
     )
     
     # Store in STM (Short-Term Memory) for fast context retrieval
@@ -230,7 +276,7 @@ async def send_message(
         session_id=session_id,
         input_text=message.message,
         output_text=response_text,
-        tokens=tokens_used
+        tokens=tokens_used,
     )
     
     # Trigger reflection worker asynchronously
@@ -239,10 +285,22 @@ async def send_message(
         session_id=session_id,
         input_text=message.message,
         output_text=response_text,
-        context={"tokens_used": tokens_used, "latency_ms": latency_ms}
+        context={
+            "tokens_used": tokens_used,
+            "latency_ms": latency_ms,
+            "provider": locals().get("provider_name"),
+        },
     )
     
-    logger.info(f"Message processed. Session: {session_id}, Tokens: {tokens_used}, Latency: {latency_ms}ms")
+    logger.info(
+        "Message processed.",
+        extra={
+            "session_id": str(session_id),
+            "tokens_used": tokens_used,
+            "latency_ms": latency_ms,
+            "provider": locals().get("provider_name"),
+        },
+    )
     
     return ChatResponse(
         response=response_text,
@@ -250,6 +308,17 @@ async def send_message(
         tokens_used=tokens_used,
         latency_ms=latency_ms
     )
+
+
+@router.post("", response_model=ChatResponse, include_in_schema=False)
+async def send_message_legacy(
+    message: ChatMessage,
+    user_id: UUID = Depends(get_user_id),
+    db: Session = Depends(get_db),
+    service: ServiceTokenPayload = Depends(verify_service_token_dependency)
+):
+    """Backward-compatible handler for legacy POST /chat endpoint."""
+    return await send_message(message=message, user_id=user_id, db=db, service=service)
 
 
 @router.post("/stream")
@@ -276,7 +345,7 @@ async def stream_message(
     message.message = sanitized_message
     
     # Check if Ollama is ready
-    if not ollama_service.is_ready:
+    if not await llm_orchestrator.ensure_ready():
         raise HTTPException(status_code=503, detail="LLM service not ready")
     
     # Get or create session
@@ -334,14 +403,25 @@ async def stream_message(
         """Generate streaming response."""
         accumulated_response = ""
         system_prompt = "You are Noble NovaCoreAI, an ethical AI assistant focused on truth, wisdom, and human flourishing. Provide thoughtful, helpful responses aligned with the Reclaimer Ethos."
+        provider_name: Optional[str] = None
+        provider_model: Optional[str] = None
         
         try:
-            async for chunk in ollama_service.generate_streaming_response(
-                prompt=full_prompt,
-                system_prompt=system_prompt,
-                temperature=0.7,
-                max_tokens=2000
-            ):
+            try:
+                provider_name, provider_model, stream = await llm_orchestrator.generate_streaming_response(
+                    prompt=full_prompt,
+                    system_prompt=system_prompt,
+                    temperature=0.7,
+                    max_tokens=2000,
+                )
+            except ProviderExhaustedError as exc:
+                logger.error(
+                    "All LLM providers exhausted for streaming",
+                    extra={"session_id": str(session_id), "error": str(exc)},
+                )
+                raise HTTPException(status_code=503, detail="LLM providers unavailable") from exc
+
+            async for chunk in stream:
                 if chunk:
                     accumulated_response += chunk
                     # Send chunk as SSE
@@ -354,8 +434,13 @@ async def stream_message(
             
             # Store the interaction
             SessionService.store_prompt(
-                db, session_id, user_id, message.message, 
-                accumulated_response, tokens_used, latency_ms
+                db,
+                session_id,
+                user_id,
+                message.message,
+                accumulated_response,
+                tokens_used,
+                latency_ms,
             )
             
             # Record usage in ledger for billing/quota tracking
@@ -364,19 +449,25 @@ async def stream_message(
                     db, user_id, "llm_tokens", tokens_used,
                     metadata={
                         "session_id": str(session_id),
-                        "model": settings.llm_model,
+                        "model": provider_model,
                         "latency_ms": latency_ms,
-                        "streaming": True
+                        "streaming": True,
+                        "provider": provider_name,
                     }
                 )
                 
                 # Record message count for quota enforcement
                 usage_service.record_usage(
-                    db, user_id, "messages", 1,
+                    db,
+                    user_id,
+                    "messages",
+                    1,
                     metadata={
                         "session_id": str(session_id),
-                        "message_length": len(message.message)
-                    }
+                        "message_length": len(message.message),
+                        "model": provider_model,
+                        "provider": provider_name,
+                    },
                 )
             except Exception as e:
                 logger.warning(f"Failed to record usage: {e}")
@@ -400,7 +491,11 @@ async def stream_message(
                     session_id=session_id,
                     input_text=message.message,
                     output_text=accumulated_response,
-                    context={"tokens_used": tokens_used, "latency_ms": latency_ms}
+                    context={
+                        "tokens_used": tokens_used,
+                        "latency_ms": latency_ms,
+                        "provider": provider_name,
+                    },
                 )
             except Exception as e:
                 logger.warning(f"Failed to trigger reflection: {e}")
@@ -415,7 +510,16 @@ async def stream_message(
             })
             yield f"data: {data}\n\n"
             
-            logger.info(f"Stream completed. Session: {session_id}, Tokens: {tokens_used}")
+            logger.info(
+                "Stream completed",
+                extra={
+                    "session_id": str(session_id),
+                    "tokens_used": tokens_used,
+                    "latency_ms": latency_ms,
+                    "provider": provider_name,
+                    "provider_model": provider_model,
+                },
+            )
             
         except Exception as e:
             logger.error(f"Streaming error: {e}", exc_info=True)

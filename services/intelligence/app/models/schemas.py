@@ -66,6 +66,18 @@ class SessionHistoryResponse(BaseModel):
     total: int
 
 
+class LLMProviderStatus(BaseModel):
+    """Represents runtime health information for an LLM provider."""
+
+    name: str
+    healthy: bool
+    enabled: bool
+    supports_streaming: bool
+    model: str
+    last_error: Optional[str] = None
+    cooling_down: bool = False
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
     model_config = {"protected_namespaces": ()}
@@ -76,3 +88,4 @@ class HealthResponse(BaseModel):
     ollama: bool
     model_loaded: bool
     gpu_available: bool
+    providers: List[LLMProviderStatus] = Field(default_factory=list, description="LLM provider health snapshots")

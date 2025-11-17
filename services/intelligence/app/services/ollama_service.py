@@ -1,8 +1,9 @@
 """Ollama LLM integration service."""
+import asyncio
 import httpx
 import logging
-import asyncio
 from typing import AsyncGenerator, Optional, Dict, Any
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ class OllamaService:
         self.gpu_enabled = settings.gpu_enabled
         self._model_loaded = False
         self._gpu_available = False
+        self._init_lock = asyncio.Lock()
     
     async def check_health(self) -> bool:
         """Check if Ollama is available."""
@@ -75,18 +77,20 @@ class OllamaService:
     ) -> str:
         """Generate a non-streaming response."""
         try:
+            prompt_text = prompt
+            if system_prompt:
+                # Embed system prompt directly to avoid Ollama hanging on the separate system field
+                prompt_text = f"{system_prompt.strip()}\n\n{prompt}"
+
             payload = {
                 "model": self.model,
-                "prompt": prompt,
+                "prompt": prompt_text,
                 "stream": False,
                 "options": {
                     "temperature": temperature,
                     "num_predict": max_tokens
                 }
             }
-            
-            if system_prompt:
-                payload["system"] = system_prompt
             
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
@@ -101,7 +105,7 @@ class OllamaService:
                     logger.error(f"Ollama API error: {response.status_code} - {response.text}")
                     return ""
         except Exception as e:
-            logger.error(f"Generate response failed: {e}")
+            logger.exception("Generate response failed")
             return ""
     
     async def generate_streaming_response(
@@ -113,18 +117,19 @@ class OllamaService:
     ) -> AsyncGenerator[str, None]:
         """Generate a streaming response."""
         try:
+            prompt_text = prompt
+            if system_prompt:
+                prompt_text = f"{system_prompt.strip()}\n\n{prompt}"
+
             payload = {
                 "model": self.model,
-                "prompt": prompt,
+                "prompt": prompt_text,
                 "stream": True,
                 "options": {
                     "temperature": temperature,
                     "num_predict": max_tokens
                 }
             }
-            
-            if system_prompt:
-                payload["system"] = system_prompt
             
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream(
@@ -176,6 +181,18 @@ class OllamaService:
     def is_ready(self) -> bool:
         """Check if service is ready."""
         return self._model_loaded
+
+    async def ensure_ready(self) -> bool:
+        """Ensure the Ollama model is loaded before serving requests."""
+        if self.is_ready:
+            return True
+
+        async with self._init_lock:
+            if self.is_ready:
+                return True
+
+            await self.initialize()
+            return self.is_ready
     
     @property
     def gpu_available(self) -> bool:

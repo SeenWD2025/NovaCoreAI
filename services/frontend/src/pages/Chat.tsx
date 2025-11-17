@@ -48,12 +48,20 @@ export default function Chat() {
 
     try {
       const response = await chatService.sendMessage(input, sessionId || undefined);
+      if (!sessionId && response.session_id) {
+        setSessionId(response.session_id);
+      }
       setMessages(prev => [...prev, response]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to send message:', error);
-      
+
+      const maybeHttpError =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { status?: number } })
+          : undefined;
+
       // Check if error is 429 (quota exceeded)
-      if (error.response?.status === 429) {
+      if (maybeHttpError?.response?.status === 429) {
         setQuotaExceeded(true);
         const errorMessage: Message = {
           id: Date.now().toString(),

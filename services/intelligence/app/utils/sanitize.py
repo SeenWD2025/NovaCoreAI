@@ -4,7 +4,9 @@ Provides utilities to sanitize user input and prevent XSS attacks
 """
 import bleach
 import logging
+import re
 from typing import Optional
+from html import unescape
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +29,28 @@ def sanitize_text(text: str) -> str:
     if not text:
         return text
     
-    # Strip all HTML tags and attributes
+    scrubbed = text
+
+    # Remove script and style blocks entirely so their contents are dropped
+    for pattern in (
+        re.compile(r"(?is)<script[^>]*>.*?</script>"),
+        re.compile(r"(?is)<style[^>]*>.*?</style>"),
+    ):
+        scrubbed = pattern.sub("", scrubbed)
+
+    # Strip all remaining HTML tags and attributes
     sanitized = bleach.clean(
-        text,
+        scrubbed,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
         strip=True  # Strip tags completely instead of escaping
     )
-    
-    # Additional cleanup - remove any remaining HTML entities
-    sanitized = bleach.linkify(sanitized, parse_email=False)
-    
-    return sanitized
+
+    # Collapse multiple whitespace characters introduced by stripping
+    sanitized = re.sub(r"\s+", " ", sanitized).strip()
+
+    # Convert any HTML entities to their plain-text equivalents
+    return unescape(sanitized)
 
 
 def sanitize_message(message: str, max_length: int = 10000) -> str:

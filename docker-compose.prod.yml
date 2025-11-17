@@ -79,6 +79,9 @@ services:
       - POLICY_SERVICE_URL=http://noble-spirit:4000
       - NGS_SERVICE_URL=http://ngs-curriculum:9000
       - MCP_SERVICE_URL=http://mcp-server:7000
+      - NOTES_SERVICE_URL=http://notes-api:8085
+      - STUDY_SERVICE_URL=http://study-engine:8090
+      - QUIZ_SERVICE_URL=http://quiz-engine:8091
     restart: unless-stopped
     networks:
       - noble-network
@@ -118,6 +121,18 @@ services:
       - OLLAMA_URL=${OLLAMA_URL}
       - LLM_MODEL=${LLM_MODEL}
       - GPU_ENABLED=${GPU_ENABLED:-true}
+      - LLM_PROVIDER_PRIORITY=${LLM_PROVIDER_PRIORITY:-ollama,gemini,openai}
+      - LLM_PROVIDER_TIMEOUTS=${LLM_PROVIDER_TIMEOUTS:-}
+      - LLM_PROVIDER_COOLDOWN_SEC=${LLM_PROVIDER_COOLDOWN_SEC:-60}
+      - LLM_PROVIDER_RETRY_LIMIT=${LLM_PROVIDER_RETRY_LIMIT:-2}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-models/gemini-2.5-flash-preview-09-2025}
+      - GEMINI_API_URL=${GEMINI_API_URL:-https://generativelanguage.googleapis.com}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_ORGANIZATION=${OPENAI_ORGANIZATION:-}
+      - OPENAI_PROJECT=${OPENAI_PROJECT:-}
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - MEMORY_SERVICE_URL=http://memory:8001
       - CELERY_BROKER_URL=${REDIS_URL}/2
@@ -233,6 +248,76 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET}
       - RUST_LOG=info
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  notes-api:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-notes-api:${IMAGE_TAG:-latest}
+    container_name: noble-notes
+    environment:
+      - NOTES_HOST=0.0.0.0
+      - NOTES_PORT=8085
+      - NOTES_DATABASE_URL=${NOTES_DATABASE_URL}
+      - NOTES_DATABASE_POOL_SIZE=${NOTES_DATABASE_POOL_SIZE:-5}
+      - NOTES_DATABASE_MAX_OVERFLOW=${NOTES_DATABASE_MAX_OVERFLOW:-5}
+      - NOTES_NOTES_TABLE=${NOTES_NOTES_TABLE:-structured_notes}
+      - NOTES_RETENTION_TABLE=${NOTES_RETENTION_TABLE:-note_retention_policies}
+      - NOTES_AUDIT_TABLE=${NOTES_AUDIT_TABLE:-note_audit_log}
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  study-engine:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-study-engine:${IMAGE_TAG:-latest}
+    container_name: noble-study
+    environment:
+      - STUDY_HOST=0.0.0.0
+      - STUDY_PORT=8090
+      - STUDY_NOTES_SERVICE_URL=http://notes-api:8085
+      - STUDY_DATABASE_URL=${STUDY_DATABASE_URL}
+      - STUDY_DATABASE_POOL_SIZE=${STUDY_DATABASE_POOL_SIZE:-5}
+      - STUDY_DATABASE_MAX_OVERFLOW=${STUDY_DATABASE_MAX_OVERFLOW:-5}
+      - STUDY_QUIZ_ARTIFACTS_TABLE=${STUDY_QUIZ_ARTIFACTS_TABLE:-study_quiz_artifacts}
+      - STUDY_GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - STUDY_GEMINI_MODEL=${GEMINI_MODEL:-models/gemini-2.5-flash-preview-09-2025}
+      - STUDY_GEMINI_API_URL=${GEMINI_API_URL:-https://generativelanguage.googleapis.com}
+      - STUDY_OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - STUDY_OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1}
+      - STUDY_OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - STUDY_OPENAI_ORGANIZATION=${OPENAI_ORGANIZATION:-}
+      - STUDY_OPENAI_PROJECT=${OPENAI_PROJECT:-}
+    restart: unless-stopped
+    networks:
+      - noble-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  quiz-engine:
+    image: ${IMAGE_PREFIX:-ghcr.io/seenwd2025/novacore}-quiz-engine:${IMAGE_TAG:-latest}
+    container_name: noble-quiz
+    environment:
+      - QUIZ_HOST=0.0.0.0
+      - QUIZ_PORT=8091
+      - QUIZ_DATABASE_URL=${QUIZ_DATABASE_URL}
+      - QUIZ_DATABASE_POOL_SIZE=${QUIZ_DATABASE_POOL_SIZE:-5}
+      - QUIZ_DATABASE_MAX_OVERFLOW=${QUIZ_DATABASE_MAX_OVERFLOW:-5}
+      - QUIZ_QUIZ_ARTIFACTS_TABLE=${QUIZ_QUIZ_ARTIFACTS_TABLE:-study_quiz_artifacts}
+      - QUIZ_QUIZ_SESSIONS_TABLE=${QUIZ_QUIZ_SESSIONS_TABLE:-quiz_sessions}
+      - QUIZ_STUDY_ENGINE_URL=http://study-engine:8090
     restart: unless-stopped
     networks:
       - noble-network

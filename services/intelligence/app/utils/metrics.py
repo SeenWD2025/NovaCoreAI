@@ -2,9 +2,6 @@
 Custom Prometheus metrics for Intelligence service
 """
 from prometheus_client import Counter, Histogram, Gauge
-import time
-from functools import wraps
-from typing import Callable
 
 
 # Chat message metrics
@@ -21,12 +18,32 @@ chat_tokens_total = Counter(
     ['direction']  # input, output
 )
 
-# Ollama latency metrics
-ollama_latency_seconds = Histogram(
-    'intelligence_ollama_latency_seconds',
-    'Ollama model inference latency in seconds',
-    ['model'],
+# LLM provider latency metrics
+llm_provider_latency_seconds = Histogram(
+    'intelligence_llm_provider_latency_seconds',
+    'LLM provider inference latency in seconds',
+    ['provider', 'model'],
     buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0)
+)
+
+# Provider success/failure counters
+llm_provider_success_total = Counter(
+    'intelligence_llm_provider_success_total',
+    'Total successful LLM provider responses',
+    ['provider']
+)
+
+llm_provider_failure_total = Counter(
+    'intelligence_llm_provider_failure_total',
+    'Total failed LLM provider attempts',
+    ['provider', 'reason']
+)
+
+# Provider health gauge (1 healthy, 0 unhealthy)
+llm_provider_health = Gauge(
+    'intelligence_llm_provider_health',
+    'LLM provider health status',
+    ['provider']
 )
 
 # Memory context size metrics
@@ -72,27 +89,21 @@ def track_memory_context(memory_count: dict):
         memory_context_size.labels(tier=tier).set(count)
 
 
-def track_ollama_latency(model: str):
-    """
-    Decorator to track Ollama inference latency.
-    
-    Usage:
-        @track_ollama_latency('mistral')
-        async def generate_response(...):
-            ...
-    """
-    def decorator(func: Callable):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            start_time = time.time()
-            try:
-                result = await func(*args, **kwargs)
-                return result
-            finally:
-                duration = time.time() - start_time
-                ollama_latency_seconds.labels(model=model).observe(duration)
-        return wrapper
-    return decorator
+def observe_provider_latency(provider: str, model: str, duration_seconds: float):
+    """Record latency for a specific provider/model combination."""
+    llm_provider_latency_seconds.labels(provider=provider, model=model).observe(duration_seconds)
+
+
+def record_provider_success(provider: str):
+    """Increment success counter for provider."""
+    llm_provider_success_total.labels(provider=provider).inc()
+    llm_provider_health.labels(provider=provider).set(1)
+
+
+def record_provider_failure(provider: str, reason: str):
+    """Increment failure counter and set health to degraded."""
+    llm_provider_failure_total.labels(provider=provider, reason=reason).inc()
+    llm_provider_health.labels(provider=provider).set(0)
 
 
 def increment_active_sessions():

@@ -1,12 +1,13 @@
-import { Injectable, UnauthorizedException, ConflictException, HttpException, HttpStatus, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import { RedisService } from '../redis/redis.service';
 import { EmailService } from '../email/email.service';
-import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { createContextLogger } from '../logger';
 
 @Injectable()
 export class AuthService {
@@ -15,7 +16,7 @@ export class AuthService {
   private readonly PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
   private readonly PASSWORD_RESET_RATE_LIMIT_ATTEMPTS = 5;
   private readonly PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS = 60 * 15;
-  private readonly logger = new Logger(AuthService.name);
+  private readonly logger = createContextLogger({ context: AuthService.name });
 
   constructor(
     private readonly db: DatabaseService,
@@ -63,7 +64,10 @@ export class AuthService {
       await this.sendVerificationEmail(user.id);
     } catch (error) {
       // Log error but don't fail registration
-      console.error('Failed to send verification email:', error);
+      this.logger.warn('Verification email dispatch failed during registration', {
+        error: error instanceof Error ? error.message : error,
+        userId: user.id,
+      });
     }
 
     return {
@@ -200,11 +204,20 @@ export class AuthService {
       const emailSent = await this.emailService.sendPasswordResetEmail(user.email, token);
 
       if (!emailSent) {
-        this.logger.error(`Failed to dispatch password reset email for ${user.email}`);
-        throw new HttpException(
-          'We could not send password reset instructions right now. Please try again later.',
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        );
+        this.logger.error('Failed to dispatch password reset email', {
+          email: user.email,
+        });
+
+        if (process.env.NODE_ENV === 'production') {
+          throw new HttpException(
+            'We could not send password reset instructions right now. Please try again later.',
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+        }
+
+        this.logger.warn('Continuing without password reset email delivery (non-production fallback).', {
+          email: user.email,
+        });
       }
     }
 
@@ -427,10 +440,22 @@ export class AuthService {
     const emailSent = await this.emailService.sendVerificationEmail(user.email, token);
 
     if (!emailSent) {
-      throw new HttpException(
-        'Failed to send verification email. Please try again later.',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      this.logger.error('Failed to send verification email', {
+        email: user.email,
+        userId: user.id,
+      });
+
+      if (process.env.NODE_ENV === 'production') {
+        throw new HttpException(
+          'Failed to send verification email. Please try again later.',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      this.logger.warn('Continuing without verification email delivery (non-production fallback).', {
+        email: user.email,
+        userId: user.id,
+      });
     }
   }
 

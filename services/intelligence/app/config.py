@@ -1,7 +1,35 @@
 """Configuration management for Intelligence Core service."""
 import os
+from typing import Any, Dict, List, Optional
+
+from pydantic import Field
 from pydantic_settings import BaseSettings
-from typing import Optional
+
+
+def _coerce_priority(value: Any) -> List[str]:
+    if isinstance(value, list):
+        return [str(item).strip().lower() for item in value if str(item).strip()]
+    if isinstance(value, str) and value.strip():
+        return [item.strip().lower() for item in value.split(",") if item.strip()]
+    return ["ollama"]
+
+
+def _coerce_timeouts(value: Any) -> Dict[str, float]:
+    if isinstance(value, dict):
+        return {str(k).strip().lower(): float(v) for k, v in value.items() if str(k).strip()}
+    mapping: Dict[str, float] = {}
+    if isinstance(value, str):
+        entries = [item.strip() for item in value.split(",") if item.strip()]
+        for entry in entries:
+            if ":" not in entry:
+                continue
+            provider, timeout = entry.split(":", 1)
+            provider = provider.strip().lower()
+            try:
+                mapping[provider] = float(timeout.strip())
+            except ValueError:
+                continue
+    return mapping
 
 
 class Settings(BaseSettings):
@@ -18,6 +46,27 @@ class Settings(BaseSettings):
     llm_model: str = os.getenv("LLM_MODEL", "mistral:instruct")
     ollama_url: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
     gpu_enabled: bool = os.getenv("GPU_ENABLED", "false").lower() == "true"
+
+    # LLM provider orchestration
+    llm_provider_priority: List[str] | str | None = Field(default=None)
+    llm_provider_timeouts: Dict[str, float] | str | None = Field(default=None)
+    llm_provider_cooldown_sec: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_SEC", "60"))
+    llm_provider_retry_limit: int = int(os.getenv("LLM_PROVIDER_RETRY_LIMIT", "3"))
+
+    # Gemini configuration
+    gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash-preview-09-2025")
+    gemini_api_url: str = os.getenv(
+        "GEMINI_API_URL",
+        "https://generativelanguage.googleapis.com"
+    )
+
+    # OpenAI configuration
+    openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4.1")
+    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    openai_organization: Optional[str] = os.getenv("OPENAI_ORGANIZATION")
+    openai_project: Optional[str] = os.getenv("OPENAI_PROJECT")
     
     # Token Limits
     free_tier_tokens_day: int = int(os.getenv("FREE_TIER_TOKENS_DAY", "1000"))
@@ -34,6 +83,9 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+    def model_post_init__(self, __context: Any) -> None:
+        object.__setattr__(self, "llm_provider_priority", _coerce_priority(self.llm_provider_priority))
+        object.__setattr__(self, "llm_provider_timeouts", _coerce_timeouts(self.llm_provider_timeouts))
 
 
 settings = Settings()

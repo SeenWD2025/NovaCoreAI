@@ -1,6 +1,13 @@
 import api from './api';
 import type { Message, ChatSession, Memory, MemorySearchResult } from '@/types/chat';
 
+interface ChatResponse {
+  response: string;
+  session_id: string;
+  tokens_used: number;
+  latency_ms: number;
+}
+
 export const chatService = {
   // Sessions
   getSessions: async (): Promise<{ sessions: ChatSession[]; count: number }> => {
@@ -20,11 +27,24 @@ export const chatService = {
 
   // Messages (REST API for non-streaming)
   sendMessage: async (message: string, sessionId?: string): Promise<Message> => {
-    const response = await api.post<Message>('/chat/message', {
+    const response = await api.post<ChatResponse>('/chat/message', {
       message,
       session_id: sessionId,
     });
-    return response.data;
+
+    const data = response.data;
+    const generatedId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    return {
+      id: generatedId,
+      session_id: data.session_id,
+      role: 'assistant',
+      content: data.response,
+      timestamp: new Date().toISOString(),
+      tokens_used: data.tokens_used,
+    };
   },
 
   // WebSocket URL for streaming chat

@@ -7,7 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
-import { generateServiceToken } from './middleware/service-auth';
+import { generateServiceToken, serviceAuthMiddleware } from './middleware/service-auth';
 import { metricsMiddleware } from './middleware/metrics-middleware';
 import { correlationIdMiddleware } from './middleware/correlation-id';
 import { register, websocketConnectionsActive, websocketConnectionsTotal, websocketMessagesTotal, rateLimitExceededTotal, authValidationTotal } from './metrics';
@@ -39,6 +39,9 @@ const INTELLIGENCE_SERVICE_URL = process.env.INTELLIGENCE_SERVICE_URL || 'http:/
 const MEMORY_SERVICE_URL = process.env.MEMORY_SERVICE_URL || 'http://localhost:8001';
 const POLICY_SERVICE_URL = process.env.POLICY_SERVICE_URL || 'http://localhost:4000';
 const NGS_SERVICE_URL = process.env.NGS_SERVICE_URL || 'http://localhost:9000';
+const NOTES_SERVICE_URL = process.env.NOTES_SERVICE_URL || 'http://localhost:8085';
+const STUDY_SERVICE_URL = process.env.STUDY_SERVICE_URL || 'http://localhost:8090';
+const QUIZ_SERVICE_URL = process.env.QUIZ_SERVICE_URL || 'http://localhost:8091';
 
 const forwardJsonBody = (proxyReq: any, req: Request) => {
   if (!req.body || !Object.keys(req.body).length) {
@@ -213,6 +216,39 @@ app.use(
       console.error('Auth service proxy error:', err.message);
       res.status(503).json({
         error: 'Auth service unavailable',
+        message: err.message,
+      });
+    },
+  })
+);
+
+// Notes API proxy (requires authentication)
+app.use(
+  '/api/notes',
+  authenticateToken,
+  createProxyMiddleware({
+    target: NOTES_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/notes': '/notes',
+    },
+    onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      if (req.user) {
+        proxyReq.setHeader('X-User-Id', req.user.userId);
+        proxyReq.setHeader('X-User-Email', req.user.email);
+        proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
+    },
+    onError: (err, req, res: any) => {
+      console.error('Notes service proxy error:', err.message);
+      res.status(503).json({
+        error: 'Notes service unavailable',
         message: err.message,
       });
     },
@@ -433,6 +469,94 @@ app.use(
   })
 );
 
+// Study Engine proxy (requires authentication)
+app.use(
+  '/api/study',
+  authenticateToken,
+  createProxyMiddleware({
+    target: STUDY_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/study': '/api',
+    },
+    onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      if (req.user) {
+        proxyReq.setHeader('X-User-Id', req.user.userId);
+        proxyReq.setHeader('X-User-Email', req.user.email);
+        proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
+    },
+    onError: (err, req, res: any) => {
+      console.error('Study service proxy error:', err.message);
+      res.status(503).json({
+        error: 'Study service unavailable',
+        message: err.message,
+      });
+    },
+  })
+);
+
+// Quiz Engine proxy (requires authentication)
+app.use(
+  '/api/quiz',
+  authenticateToken,
+  createProxyMiddleware({
+    target: QUIZ_SERVICE_URL,
+    changeOrigin: true,
+    onProxyReq: (proxyReq, req: AuthRequest) => {
+      if (gatewayServiceToken) {
+        proxyReq.setHeader('X-Service-Token', gatewayServiceToken);
+      }
+      if (req.user) {
+        proxyReq.setHeader('X-User-Id', req.user.userId);
+        proxyReq.setHeader('X-User-Email', req.user.email);
+        proxyReq.setHeader('X-User-Role', req.user.role);
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req as Request);
+      }
+    },
+    onError: (err, req, res: any) => {
+      console.error('Quiz service proxy error:', err.message);
+      res.status(503).json({
+        error: 'Quiz service unavailable',
+        message: err.message,
+      });
+    },
+  })
+);
+
+// Internal Intelligence proxy (service-to-service)
+app.use(
+  '/internal/intelligence',
+  serviceAuthMiddleware,
+  createProxyMiddleware({
+    target: INTELLIGENCE_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/internal/intelligence': '/quiz',
+    },
+    onProxyReq: (proxyReq, req: Request) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        forwardJsonBody(proxyReq, req);
+      }
+    },
+    onError: (err, req, res: any) => {
+      console.error('Intelligence internal proxy error:', err.message);
+      res.status(503).json({
+        error: 'Intelligence service unavailable',
+        message: err.message,
+      });
+    },
+  })
+);
+
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', err);
@@ -605,6 +729,9 @@ server.listen(PORT, () => {
   logger.info(`  - /api/chat/* → ${INTELLIGENCE_SERVICE_URL}`);
   logger.info(`  - /api/memory/* → ${MEMORY_SERVICE_URL}`);
   logger.info(`  - /api/ngs/* → ${NGS_SERVICE_URL}`);
+  logger.info(`  - /api/notes/* → ${NOTES_SERVICE_URL}`);
+  logger.info(`  - /api/study/* → ${STUDY_SERVICE_URL}`);
+  logger.info(`  - /api/quiz/* → ${QUIZ_SERVICE_URL}`);
 });
 
 // Graceful shutdown

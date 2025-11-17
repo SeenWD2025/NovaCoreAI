@@ -10,9 +10,9 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.config import settings
 from app.database import test_connection
-from app.services.ollama_service import ollama_service
-from app.routers import chat
-from app.models.schemas import HealthResponse
+from app.services.llm_router import llm_orchestrator
+from app.routers import chat, quiz
+from app.models.schemas import HealthResponse, LLMProviderStatus
 from app.middleware import CorrelationIdMiddleware
 
 # Configure structured logging with structlog
@@ -39,12 +39,14 @@ async def lifespan(app: FastAPI):
     db_ok = test_connection()
     logger.info("Database connection status", db_healthy=db_ok)
     
-    # Initialize Ollama service
-    await ollama_service.initialize()
-    
-    logger.info("Ollama service status", 
-                is_ready=ollama_service.is_ready,
-                gpu_available=ollama_service.gpu_available)
+    # Initialize LLM providers
+    await llm_orchestrator.initialize()
+    is_ready = await llm_orchestrator.ensure_ready()
+    logger.info(
+        "LLM providers initialized",
+        providers=llm_orchestrator.list_provider_names(),
+        any_ready=is_ready,
+    )
     
     logger.info("🚀 Intelligence Core ready", port=settings.port)
     
@@ -76,6 +78,7 @@ app.add_middleware(CorrelationIdMiddleware)
 
 # Include routers
 app.include_router(chat.router)
+app.include_router(quiz.router)
 
 # Add Prometheus metrics with custom metrics
 instrumentator = Instrumentator(
@@ -102,15 +105,24 @@ async def metrics() -> Response:
 async def health():
     """Health check endpoint."""
     db_healthy = test_connection()
-    ollama_healthy = await ollama_service.check_health()
+    provider_statuses = await llm_orchestrator.get_provider_status()
+    provider_payload = [LLMProviderStatus(**status.__dict__) for status in provider_statuses]
+    ollama_status = next((status for status in provider_statuses if status.name == "ollama"), None)
+    ollama_healthy = bool(ollama_status and ollama_status.enabled and ollama_status.healthy)
+    model_loaded = any(status.enabled and status.healthy for status in provider_statuses)
+
+    # Attempt to surface GPU availability when local provider is present
+    ollama_provider = llm_orchestrator.get_provider("ollama")
+    gpu_available = getattr(ollama_provider, "gpu_available", False) if ollama_provider else False
     
     return HealthResponse(
         status="healthy" if db_healthy and ollama_healthy else "degraded",
         service="intelligence-core",
         database=db_healthy,
         ollama=ollama_healthy,
-        model_loaded=ollama_service.is_ready,
-        gpu_available=ollama_service.gpu_available
+        model_loaded=model_loaded,
+        gpu_available=gpu_available,
+        providers=provider_payload,
     )
 
 
@@ -126,7 +138,8 @@ async def root():
             "chat": "/chat/message",
             "stream": "/chat/stream",
             "sessions": "/chat/sessions",
-            "history": "/chat/history/{session_id}"
+            "history": "/chat/history/{session_id}",
+            "quiz": "/quiz/generate",
         }
     }
 

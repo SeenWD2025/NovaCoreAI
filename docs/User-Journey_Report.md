@@ -3,9 +3,10 @@
 ## Registration 
     -New user registered successfully (email:bizpro96@gmail.com ; pwd: Business9616)
     -Verifiation failed to send. Attempted to resend email verification manually and it also failed.
-    -Password recreation printed success, but upon attempting to sign in it was revealed the new password did not work, but the old one did. 
+    -Password recreation printed success, but upon attempting to sign in it was revealed the new password did not work, the old one oes not work either. Locked out
+    -Missing password reset option. 
     -Session Management: logout of all sessions worked successfully.
-    -Login with credentials from registration was successful
+    -Login with credentials from registration was unsuccessful
 
 ## Dashboard
     -Page loaded successfully
@@ -25,7 +26,7 @@
 
 ## Levels
     -Page loads successfully
-    -All 24 levels are locked (at least 1 level should be unlocked by default even for a free tier user)
+    -1 level unlocked by default but unable to select or start the lesson
 
 ## Memory
     -Page loads successfully

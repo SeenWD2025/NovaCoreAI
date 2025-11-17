@@ -1,11 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
+import { createContextLogger } from '../logger';
 
 @Injectable()
 export class EmailService {
   private transporter: Transporter;
-  private readonly logger = new Logger(EmailService.name);
+  private readonly logger = createContextLogger({ context: EmailService.name });
   private readonly fromEmail: string;
   private readonly frontendUrl: string;
 
@@ -22,7 +23,7 @@ export class EmailService {
     const hasSmtpCredentials = Boolean(smtpHost && smtpUser && smtpPassword);
 
     if (process.env.NODE_ENV === 'production' && hasSmtpCredentials) {
-      this.logger.log('Email service using configured SMTP transport (production mode).');
+  this.logger.info('Email service using configured SMTP transport (production mode).');
       this.transporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
@@ -36,7 +37,7 @@ export class EmailService {
     }
 
     if (hasSmtpCredentials) {
-      this.logger.log('Email service using configured SMTP transport (non-production mode).');
+  this.logger.info('Email service using configured SMTP transport (non-production mode).');
       this.transporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
@@ -50,7 +51,7 @@ export class EmailService {
     }
 
     // Fallback: stream transport keeps messages local, ensuring dev/test environments succeed
-    this.logger.warn('Email service using stream transport. Emails will be logged but not sent.');
+  this.logger.warn('Email service using stream transport. Emails will be logged but not sent.');
     this.transporter = nodemailer.createTransport({
       streamTransport: true,
       newline: 'unix',
@@ -78,20 +79,29 @@ export class EmailService {
       const info = await this.transporter.sendMail(mailOptions);
       
       if (process.env.NODE_ENV !== 'production') {
-        this.logger.log(`Verification email sent to ${email}`);
+        this.logger.info('Verification email emitted (stream transport).', { email });
         const previewUrl = nodemailer.getTestMessageUrl(info);
         if (previewUrl) {
-          this.logger.log(`Preview URL: ${previewUrl}`);
+          this.logger.info('Preview URL', { previewUrl });
         }
         if ((info as any).message) {
-          this.logger.debug(`Email payload: ${(info as any).message.toString()}`);
+          this.logger.debug('Email payload', { payload: (info as any).message.toString() });
         }
-        this.logger.log(`Verification URL: ${verificationUrl}`);
+        this.logger.info('Verification URL', { verificationUrl });
       }
 
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send verification email to ${email}:`, error);
+      this.logger.error('Failed to send verification email', {
+        email,
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.warn('Continuing without verification email delivery (non-production fallback).', {
+          email,
+        });
+      }
       return false;
     }
   }
@@ -116,19 +126,28 @@ export class EmailService {
       const info = await this.transporter.sendMail(mailOptions);
       
       if (process.env.NODE_ENV !== 'production') {
-        this.logger.log(`Password reset email sent to ${email}`);
+        this.logger.info('Password reset email emitted (stream transport).', { email });
         const previewUrl = nodemailer.getTestMessageUrl(info);
         if (previewUrl) {
-          this.logger.log(`Preview URL: ${previewUrl}`);
+          this.logger.info('Preview URL', { previewUrl });
         }
         if ((info as any).message) {
-          this.logger.debug(`Email payload: ${(info as any).message.toString()}`);
+          this.logger.debug('Email payload', { payload: (info as any).message.toString() });
         }
       }
 
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send password reset email to ${email}:`, error);
+      this.logger.error('Failed to send password reset email', {
+        email,
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.warn('Continuing without password reset email delivery (non-production fallback).', {
+          email,
+        });
+      }
       return false;
     }
   }
