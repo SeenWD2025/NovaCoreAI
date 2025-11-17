@@ -14,14 +14,15 @@ export class BillingController {
   @Roles('student', 'subscriber')
   @Post('create-checkout')
   async createCheckout(@Request() req, @Body() createCheckoutDto: CreateCheckoutDto) {
+    const currentTier = req.user.subscription_tier || 'free_trial';
+    
     const result = await this.billingService.createCheckoutSession(
       req.user.userId,
       createCheckoutDto.tier,
     );
     
-    // Track subscription change (from free_trial or current tier to new tier)
     subscriptionChangesTotal.labels({
-      from_tier: 'free_trial', // TODO: Get actual current tier
+      from_tier: currentTier,
       to_tier: createCheckoutDto.tier
     }).inc();
     
