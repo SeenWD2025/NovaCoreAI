@@ -104,9 +104,6 @@ services:
       - /app/node_modules
     command: sh -c "npm install && npm run dev"
 
-  # Service stubs - These are minimal implementations showing architecture
-  # Full implementations will be added in their respective phases
-  
   auth-billing:
     build:
       context: ./services/auth-billing
