@@ -31,6 +31,10 @@ if (!process.env.SERVICE_JWT_SECRET) {
 }
 const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET;
 
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : ['http://localhost:5173'];
+
 // Generate service token for Gateway (cache it and regenerate when needed)
 let gatewayServiceToken = '';
 try {
@@ -286,7 +290,19 @@ const forwardJsonBody = (proxyReq: any, req: Request) => {
 };
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 
 // Correlation ID middleware (must be early in the chain)
 app.use(correlationIdMiddleware);
