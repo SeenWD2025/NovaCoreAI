@@ -438,6 +438,9 @@ const SERVICE_HEALTH_TARGETS = [
   { name: 'memory', baseUrl: MEMORY_SERVICE_URL },
   { name: 'ngs', baseUrl: NGS_SERVICE_URL },
   { name: 'policy', baseUrl: POLICY_SERVICE_URL },
+  { name: 'notes', baseUrl: NOTES_SERVICE_URL },
+  { name: 'study', baseUrl: STUDY_SERVICE_URL },
+  { name: 'quiz', baseUrl: QUIZ_SERVICE_URL },
 ];
 
 app.get('/api/status', express.json(), async (req, res) => {
