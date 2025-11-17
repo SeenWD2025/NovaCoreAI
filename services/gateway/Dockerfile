@@ -1,8 +1,9 @@
-FROM node:20-alpine
+# Build stage
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install certificates and set npm to use HTTP registry as a workaround for TLS cipher issues
+# Install certificates and set npm to use HTTP registry
 RUN apk add --no-cache ca-certificates openssl \
 	&& update-ca-certificates \
 	&& npm config set strict-ssl false \
@@ -10,16 +11,35 @@ RUN apk add --no-cache ca-certificates openssl \
 	&& npm config set fetch-retry-maxtimeout 600000 \
 	&& npm config set fetch-retry-mintimeout 20000
 
-# Copy manifests first for better layer caching
+# Copy manifests
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install dependencies (build-time for immutable image pattern)
-RUN npm install --no-audit --no-fund || npm install --no-audit --no-fund --prefer-offline \
+# Install dependencies
+RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund --prefer-offline
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# Runtime stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install certificates
+RUN apk add --no-cache ca-certificates openssl \
+	&& update-ca-certificates
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm ci --only=production --no-audit --no-fund || npm install --only=production --no-audit --no-fund --prefer-offline \
 	&& npm cache clean --force || true
 
-# Copy rest of the source
-COPY . .
+# Copy built application from builder
+COPY --from=builder /app/dist ./dist
 
 # Create non-root user and switch to it
 RUN addgroup -g 1000 appuser && adduser -D -u 1000 -G appuser appuser && chown -R appuser:appuser /app
@@ -27,4 +47,4 @@ USER appuser
 
 EXPOSE 5000
 
-CMD ["npm", "run", "dev"]
+CMD ["node", "dist/index.js"]
