@@ -18,8 +18,18 @@ config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET || '';
+
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!process.env.SERVICE_JWT_SECRET) {
+  console.error('FATAL: SERVICE_JWT_SECRET environment variable is required');
+  process.exit(1);
+}
+const SERVICE_JWT_SECRET = process.env.SERVICE_JWT_SECRET;
 
 // Generate service token for Gateway (cache it and regenerate when needed)
 let gatewayServiceToken = '';
