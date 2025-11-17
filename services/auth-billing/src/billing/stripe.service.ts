@@ -256,13 +256,13 @@ export class StripeService {
 
     console.log(`Subscription canceled for user ${userId}`);
     
-    const userResult = await this.db.query(
+    const emailResult = await this.db.query(
       'SELECT email FROM users WHERE id = $1',
       [userId],
     );
     
-    if (userResult.rows.length > 0) {
-      const userEmail = userResult.rows[0].email;
+    if (emailResult.rows.length > 0) {
+      const userEmail = emailResult.rows[0].email;
       await this.emailService.sendSubscriptionCancellationEmail(userEmail);
       console.log(`Subscription cancellation email sent to ${userEmail}`);
     }
