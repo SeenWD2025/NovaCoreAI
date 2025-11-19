@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"strconv"
+	"time"
 
+	"noble-ngs-curriculum/internal/clients/intelligence"
 	"noble-ngs-curriculum/internal/models"
 	"noble-ngs-curriculum/internal/services"
 
@@ -11,12 +15,14 @@ import (
 )
 
 type LessonHandler struct {
-	lessonService *services.LessonService
+	lessonService       *services.LessonService
+	intelligenceClient  *intelligence.Client
 }
 
-func NewLessonHandler(lessonService *services.LessonService) *LessonHandler {
+func NewLessonHandler(lessonService *services.LessonService, intelligenceClient *intelligence.Client) *LessonHandler {
 	return &LessonHandler{
-		lessonService: lessonService,
+		lessonService:      lessonService,
+		intelligenceClient: intelligenceClient,
 	}
 }
 
@@ -236,5 +242,226 @@ func (h *LessonHandler) SubmitReflection(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"reflection": reflection,
 		"message":    "Reflection submitted successfully",
+	})
+}
+
+func (h *LessonHandler) GenerateLesson(c *fiber.Ctx) error {
+	// Get user info from headers
+	userIDStr := c.Get("X-User-Id")
+	userEmail := c.Get("X-User-Email")
+	userRole := c.Get("X-User-Role")
+	
+	if userIDStr == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Missing user ID",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	// Get lesson ID from path parameter
+	lessonIDStr := c.Params("id")
+	lessonID, err := uuid.Parse(lessonIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid lesson ID format",
+		})
+	}
+
+	// Get lesson details from database
+	lesson, err := h.lessonService.GetLesson(lessonID, userID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Lesson not found",
+		})
+	}
+
+	learnerProfile := intelligence.LearnerProfile{
+		XP:           0, // Will be fetched from user_progress
+		CurrentLevel: lesson.LevelID,
+		WeakTopics:   []string{},
+		PriorLessons: []string{},
+		Preferences:  make(map[string]interface{}),
+	}
+
+	genReq := intelligence.GenerateLessonRequest{
+		LessonSummary: lesson.Description,
+		LevelNumber:   lesson.LevelID,
+		LearnerProfile: learnerProfile,
+		Constraints: intelligence.GenerationConstraints{
+			TargetMinutes:           lesson.EstimatedMinutes,
+			Prereqs:                 []string{},
+			RequireEthicsGuardrails: true,
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	if correlationID := c.Get("X-Correlation-ID"); correlationID != "" {
+		ctx = context.WithValue(ctx, "correlation_id", correlationID)
+	}
+
+	genResp, err := h.intelligenceClient.GenerateLesson(ctx, genReq, userIDStr, userEmail, userRole)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to generate lesson: " + err.Error(),
+		})
+	}
+
+	metadataJSON, err := json.Marshal(genResp.StructuredLesson)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to marshal lesson metadata",
+		})
+	}
+
+	err = h.lessonService.UpdateLessonContent(lessonID, genResp.ContentMarkdown, metadataJSON, genResp.Version)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to store lesson content: " + err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"lesson_id":         lessonID,
+		"content_markdown":  genResp.ContentMarkdown,
+		"metadata":          genResp.StructuredLesson,
+		"tokens_used":       genResp.TokensUsed,
+		"provider":          genResp.Provider,
+		"latency_ms":        genResp.LatencyMs,
+		"version":           genResp.Version,
+		"message":           "Lesson generated successfully",
+	})
+}
+
+// GetLessonContent handles GET /ngs/lessons/:id/content
+func (h *LessonHandler) GetLessonContent(c *fiber.Ctx) error {
+	// Get user ID from header
+	userIDStr := c.Get("X-User-Id")
+	if userIDStr == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Missing user ID",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	// Get lesson ID from path parameter
+	lessonIDStr := c.Params("id")
+	lessonID, err := uuid.Parse(lessonIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid lesson ID format",
+		})
+	}
+
+	// Get lesson with content
+	lesson, err := h.lessonService.GetLesson(lessonID, userID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Lesson not found",
+		})
+	}
+
+	var metadata map[string]interface{}
+	if lesson.Metadata != nil {
+		if err := json.Unmarshal(lesson.Metadata, &metadata); err != nil {
+			metadata = nil
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"lesson_id":        lessonID,
+		"title":            lesson.Title,
+		"content_markdown": lesson.ContentMarkdown,
+		"metadata":         metadata,
+		"level_id":         lesson.LevelID,
+		"xp_reward":        lesson.XPReward,
+		"estimated_minutes": lesson.EstimatedMinutes,
+	})
+}
+
+func (h *LessonHandler) SendEducatorChatMessage(c *fiber.Ctx) error {
+	// Get user info from headers
+	userIDStr := c.Get("X-User-Id")
+	userEmail := c.Get("X-User-Email")
+	userRole := c.Get("X-User-Role")
+	
+	if userIDStr == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Missing user ID",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	// Get lesson ID from path parameter
+	lessonIDStr := c.Params("id")
+	lessonID, err := uuid.Parse(lessonIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid lesson ID format",
+		})
+	}
+
+	// Parse request body
+	var req struct {
+		Message   string     `json:"message"`
+		SessionID *uuid.UUID `json:"session_id,omitempty"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Message == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Message is required",
+		})
+	}
+
+	chatReq := intelligence.EducatorChatRequest{
+		Message:   req.Message,
+		LessonID:  lessonID,
+		SessionID: req.SessionID,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if correlationID := c.Get("X-Correlation-ID"); correlationID != "" {
+		ctx = context.WithValue(ctx, "correlation_id", correlationID)
+	}
+
+	chatResp, err := h.intelligenceClient.SendEducatorChatMessage(ctx, chatReq, userIDStr, userEmail, userRole)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to send chat message: " + err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"response":    chatResp.Response,
+		"session_id":  chatResp.SessionID,
+		"lesson_id":   chatResp.LessonID,
+		"tokens_used": chatResp.TokensUsed,
+		"latency_ms":  chatResp.LatencyMs,
 	})
 }

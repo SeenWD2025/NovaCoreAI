@@ -425,3 +425,18 @@ func (s *LessonService) calculateReflectionQuality(text string) float64 {
 	}
 	return 0.9
 }
+
+func (s *LessonService) UpdateLessonContent(lessonID uuid.UUID, contentMarkdown string, metadata json.RawMessage, version int) error {
+	_, err := s.db.Exec(`
+		UPDATE lessons
+		SET content_markdown = $1, metadata = $2, content_version = $3, updated_at = NOW()
+		WHERE id = $4
+	`, contentMarkdown, metadata, version, lessonID)
+	
+	if err != nil {
+		return fmt.Errorf("failed to update lesson content: %w", err)
+	}
+	
+	log.Printf("Updated lesson %s with generated content (version %d)", lessonID, version)
+	return nil
+}
