@@ -13,9 +13,28 @@ CREATE TABLE IF NOT EXISTS users (
   role VARCHAR(50) DEFAULT 'student',
   subscription_tier VARCHAR(50) DEFAULT 'free_trial',
   trial_ends_at TIMESTAMP,
+  
+  -- Email verification columns (consolidated from 07_email_verification.sql)
+  email_verified BOOLEAN DEFAULT false,
+  email_verification_token VARCHAR(255),
+  email_verification_token_expires_at TIMESTAMP,
+  
+  -- Password reset columns (consolidated from 08_password_reset.sql)
+  password_reset_token VARCHAR(255),
+  password_reset_token_expires_at TIMESTAMP,
+  
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Create indexes for token lookups
+CREATE INDEX IF NOT EXISTS idx_users_email_verification_token 
+ON users(email_verification_token) 
+WHERE email_verification_token IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_users_password_reset_token 
+ON users(password_reset_token) 
+WHERE password_reset_token IS NOT NULL;
 
 -- Subscription Management
 CREATE TABLE IF NOT EXISTS subscriptions (

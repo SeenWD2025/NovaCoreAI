@@ -15,6 +15,10 @@ import type { Lesson } from '@/types/curriculum';
 import curriculumService from '@/services/curriculum';
 import QuotaCard from '@/components/QuotaCard';
 import EmailVerificationBanner from '@/components/EmailVerificationBanner';
+import { DashboardSkeleton } from '@/components/SkeletonLoader';
+import EmptyState from '@/components/EmptyState';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import Alert from '@/components/Alert';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
@@ -47,11 +51,7 @@ export default function Dashboard() {
   }, [progress]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-800"></div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const safeAchievements = Array.isArray(achievements) ? achievements : [];
@@ -61,27 +61,26 @@ export default function Dashboard() {
   const recentAchievements = safeAchievements.slice(0, 3);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Email Verification Banner */}
-      <EmailVerificationBanner isVerified={user?.email_verified} />
+    <ErrorBoundary>
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Email Verification Banner */}
+        <EmailVerificationBanner isVerified={user?.email_verified} />
 
-      {error && (
-        <div className="card bg-red-50 border border-red-200">
-          <p className="text-sm text-red-700">
+        {error && (
+          <Alert type="error" title="Failed to load data">
             We couldn't load your latest progress data. Please refresh the page or try again later.
+          </Alert>
+        )}
+
+        {/* Welcome Header */}
+        <div className="card bg-gradient-to-r from-primary-800 to-primary-600 text-white">
+          <h1 className="text-3xl font-bold mb-2">
+            Welcome back, {user?.email?.split('@')[0] || 'Student'}!
+          </h1>
+          <p className="text-primary-100">
+            Continue your journey through the Noble Growth School
           </p>
         </div>
-      )}
-
-      {/* Welcome Header */}
-      <div className="card bg-gradient-to-r from-primary-800 to-primary-600 text-white">
-        <h1 className="text-3xl font-bold mb-2">
-          Welcome back, {user?.email?.split('@')[0] || 'Student'}!
-        </h1>
-        <p className="text-primary-100">
-          Continue your journey through the Noble Growth School
-        </p>
-      </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -174,7 +173,16 @@ export default function Dashboard() {
           </div>
           
           {currentLevelLessons.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No lessons available</p>
+            <EmptyState
+              icon={<BookOpen size={48} />}
+              title="No lessons available"
+              description="Check back later for new content or explore other levels."
+              action={
+                <Link to="/levels" className="btn-primary">
+                  Browse All Levels
+                </Link>
+              }
+            />
           ) : (
             <div className="space-y-3">
               {currentLevelLessons.map((lesson) => (
@@ -297,6 +305,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-    </div>
+    </ErrorBoundary>
   );
 }

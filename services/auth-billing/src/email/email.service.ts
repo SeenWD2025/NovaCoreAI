@@ -12,7 +12,7 @@ export class EmailService {
 
   constructor() {
     this.fromEmail = process.env.EMAIL_FROM || 'noreply@novacore.ai';
-    this.frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    this.frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
     const smtpHost = process.env.SMTP_HOST;
     const smtpUser = process.env.SMTP_USER;
@@ -21,6 +21,16 @@ export class EmailService {
     const smtpSecure = process.env.SMTP_SECURE === 'true';
 
     const hasSmtpCredentials = Boolean(smtpHost && smtpUser && smtpPassword);
+
+    this.logger.debug('Email service configuration resolved', {
+      fromEmail: this.fromEmail,
+      frontendUrl: this.frontendUrl,
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+      hasSmtpCredentials,
+      nodeEnv: process.env.NODE_ENV || 'development',
+    });
 
     if (process.env.NODE_ENV === 'production' && hasSmtpCredentials) {
   this.logger.info('Email service using configured SMTP transport (production mode).');
@@ -104,7 +114,12 @@ export class EmailService {
       }
       return false;
     }
+
   }
+
+    private normalizeDate(value: Date | string): Date {
+      return value instanceof Date ? value : new Date(value);
+    }
 
   /**
    * Send password reset email (for future implementation)
@@ -724,4 +739,357 @@ export class EmailService {
       </html>
     `;
   }
+
+  /**
+   * Send trial expiration reminder email (Issue #6)
+   * @param email User's email address
+   * @param trialEndDate Date when trial expires
+   */
+  async sendTrialExpiringEmail(email: string, trialEndDate: Date | string): Promise<boolean> {
+    const normalizedDate = this.normalizeDate(trialEndDate);
+    const formattedDate = normalizedDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: '⏰ Your NovaCoreAI Trial Expires Tomorrow',
+      html: this.getTrialExpiringTemplate(formattedDate),
+      text: `Your NovaCoreAI free trial expires on ${formattedDate}. Subscribe now to continue your AI learning journey!`,
+    };
+
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
+      
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.info('Trial expiring email emitted (stream transport).', { email, trialEndDate: normalizedDate.toISOString() });
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+          this.logger.info('Preview URL', { previewUrl });
+        }
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error('Failed to send trial expiring email', {
+        email,
+        trialEndDate,
+        error: error instanceof Error ? error.message : error,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Send trial expired notification email (Issue #6)
+   * @param email User's email address
+   * @param trialEndDate Date when trial expired
+   */
+  async sendTrialExpiredEmail(email: string, trialEndDate: Date | string): Promise<boolean> {
+    const normalizedDate = this.normalizeDate(trialEndDate);
+    const formattedDate = normalizedDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const mailOptions = {
+      from: this.fromEmail,
+      to: email,
+      subject: '🔒 Your NovaCoreAI Trial Has Expired',
+      html: this.getTrialExpiredTemplate(formattedDate),
+      text: `Your NovaCoreAI free trial expired on ${formattedDate}. Your account has been moved to our free tier. Subscribe anytime to unlock full features!`,
+    };
+
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
+      
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.info('Trial expired email emitted (stream transport).', { email, trialEndDate: normalizedDate.toISOString() });
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+          this.logger.info('Preview URL', { previewUrl });
+        }
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error('Failed to send trial expired email', {
+        email,
+        trialEndDate,
+        error: error instanceof Error ? error.message : error,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * HTML template for trial expiring reminder email
+   */
+  private getTrialExpiringTemplate(formattedDate: string): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Trial Expires Tomorrow</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .header {
+            background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+          }
+          .content {
+            background: #ffffff;
+            padding: 40px 30px;
+            border: 1px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+          }
+          .urgent {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+            text-align: center;
+          }
+          .button-primary {
+            display: inline-block;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 10px 10px;
+          }
+          .button-secondary {
+            display: inline-block;
+            padding: 14px 32px;
+            background: #6c757d;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 10px 10px;
+          }
+          .pricing {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+          }
+          .price-plan {
+            display: inline-block;
+            width: 45%;
+            margin: 10px 2%;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            text-align: center;
+            vertical-align: top;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 14px;
+          }
+          @media (max-width: 600px) {
+            .price-plan { width: 90%; display: block; margin: 10px auto; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>⏰ Don't Lose Your Progress!</h1>
+        </div>
+        <div class="content">
+          <div class="urgent">
+            <h2 style="margin: 0; color: #856404;">Your free trial expires on ${formattedDate}</h2>
+          </div>
+
+          <p>You've been making great progress with NovaCoreAI! Your free trial ends soon, and we'd hate to see you lose access to your personalized AI learning experience.</p>
+
+          <h3>🚀 What You'll Keep With a Subscription:</h3>
+          <ul>
+            <li><strong>Unlimited AI Conversations</strong> - No daily limits</li>
+            <li><strong>Your Personal Memory System</strong> - All your progress preserved</li>
+            <li><strong>Noble Growth System</strong> - Complete curriculum access</li>
+            <li><strong>Achievement System</strong> - Continue earning and unlocking</li>
+            <li><strong>Priority Support</strong> - Get help when you need it</li>
+          </ul>
+
+          <div class="pricing">
+            <h3 style="text-align: center; margin-top: 0;">Choose Your Plan:</h3>
+            
+            <div class="price-plan">
+              <h4>Basic</h4>
+              <div style="font-size: 24px; font-weight: bold; color: #667eea;">$9.99/mo</div>
+              <p>50K tokens daily<br>Full curriculum<br>Memory system</p>
+            </div>
+            
+            <div class="price-plan">
+              <h4>Pro</h4>
+              <div style="font-size: 24px; font-weight: bold; color: #667eea;">$19.99/mo</div>
+              <p>Unlimited tokens<br>Custom AI agents<br>Priority support</p>
+            </div>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${this.frontendUrl}/billing" class="button-primary">Subscribe Now</a>
+            <a href="${this.frontendUrl}/pricing" class="button-secondary">View All Plans</a>
+          </div>
+
+          <p><strong>Questions?</strong> Reply to this email and our team will help you choose the perfect plan for your learning goals.</p>
+
+          <p style="font-size: 14px; color: #666;"><em>After your trial expires, your account will move to our free tier with limited features. You can upgrade anytime to regain full access.</em></p>
+        </div>
+        <div class="footer">
+          <p>NovaCoreAI - Constitutional AI for Noble Growth</p>
+          <p>Don't want these emails? <a href="${this.frontendUrl}/unsubscribe">Unsubscribe</a></p>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * HTML template for trial expired notification email
+   */
+  private getTrialExpiredTemplate(formattedDate: string): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Trial Expired</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .header {
+            background: #6c757d;
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+          }
+          .content {
+            background: #ffffff;
+            padding: 40px 30px;
+            border: 1px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+          }
+          .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 20px;
+            margin: 20px 0;
+          }
+          .free-features {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+          }
+          .button {
+            display: inline-block;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 14px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Your Trial Has Ended</h1>
+        </div>
+        <div class="content">
+          <p>Your NovaCoreAI free trial expired on <strong>${formattedDate}</strong>. Thank you for exploring what AI-powered learning can do!</p>
+
+          <div class="info-box">
+            <h3 style="margin-top: 0;">📋 Your Account Status:</h3>
+            <p><strong>✅ All your progress is saved</strong><br>
+            Your conversations, achievements, and memory data are preserved and waiting for you.</p>
+            
+            <p><strong>🔄 Moved to Free Tier</strong><br>
+            You now have access to our basic features with daily usage limits.</p>
+          </div>
+
+          <div class="free-features">
+            <h3>🆓 What You Can Still Do (Free Tier):</h3>
+            <ul>
+              <li>5 AI conversations per day</li>
+              <li>Basic curriculum access</li>
+              <li>View your progress and achievements</li>
+              <li>Browse the community features</li>
+            </ul>
+          </div>
+
+          <h3>🚀 Ready to Unlock Everything?</h3>
+          <p>Upgrade anytime to get back unlimited access to:</p>
+          <ul>
+            <li><strong>Unlimited AI conversations</strong></li>
+            <li><strong>Your complete personal memory system</strong></li>
+            <li><strong>Full Noble Growth System curriculum</strong></li>
+            <li><strong>Achievement system and progress tracking</strong></li>
+            <li><strong>Custom AI agents (Pro plan)</strong></li>
+            <li><strong>Priority support</strong></li>
+          </ul>
+
+          <div style="text-align: center;">
+            <a href="${this.frontendUrl}/billing" class="button">Reactivate Your Subscription</a>
+          </div>
+
+          <p>🤔 <strong>Have questions?</strong> We're here to help! Reply to this email or reach out to our support team.</p>
+
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          
+          <p style="font-size: 14px; color: #666;">
+            <strong>We miss you already!</strong> Our AI remembers your learning style and preferences. When you return, you'll pick up exactly where you left off.
+          </p>
+        </div>
+        <div class="footer">
+          <p>NovaCoreAI - Constitutional AI for Noble Growth</p>
+          <p>Want to update your email preferences? <a href="${this.frontendUrl}/settings">Account Settings</a></p>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
 }

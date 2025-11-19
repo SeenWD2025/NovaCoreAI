@@ -1,8 +1,30 @@
-import { Controller, Get, Post, Body, UseGuards, Request, Query, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Request, Query, Param, Headers } from '@nestjs/common';
+import { IsString, IsNumber, IsOptional, IsObject, IsUUID } from 'class-validator';
 import { UsageService } from './usage.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { ServiceAuthGuard } from '../auth/service-auth.guard';
+import { usageRecordingAttempts } from '../metrics';
+
+/**
+ * DTO for recording usage events from other services
+ */
+export class RecordUsageDto {
+  @IsString()
+  @IsUUID()
+  userId: string;
+
+  @IsString()
+  resourceType: string; // 'llm_tokens', 'memory_storage', 'agent_minutes', 'messages'
+
+  @IsNumber()
+  amount: number;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, any>;
+}
 
 @Controller('usage')
 export class UsageController {
@@ -89,5 +111,49 @@ export class UsageController {
   async getUsageHistory(@Request() req, @Query('days') days?: string) {
     const daysNum = days ? parseInt(days) : 30;
     return this.usageService.getUsageHistory(req.user.userId, daysNum);
+  }
+
+  /**
+   * Record usage event (Service-to-Service endpoint)
+   * POST /usage/record
+   * Requires X-Service-Token header
+   * Used by Intelligence, Memory, and other services to log usage
+   */
+  @Post('record')
+  @UseGuards(ServiceAuthGuard)
+  async recordUsage(
+    @Body() dto: RecordUsageDto,
+    @Headers('x-user-id') headerUserId?: string,
+  ) {
+    try {
+      // Use userId from header if provided, otherwise from body
+      const userId = headerUserId || dto.userId;
+      
+      await this.usageService.recordUsage(
+        userId,
+        dto.resourceType,
+        dto.amount,
+        dto.metadata,
+      );
+
+      usageRecordingAttempts.labels({
+        resource_type: dto.resourceType,
+        result: 'success',
+      }).inc();
+
+      return {
+        success: true,
+        message: 'Usage recorded successfully',
+        userId,
+        resourceType: dto.resourceType,
+        amount: dto.amount,
+      };
+    } catch (error) {
+      usageRecordingAttempts.labels({
+        resource_type: dto.resourceType,
+        result: 'failure',
+      }).inc();
+      throw error;
+    }
   }
 }

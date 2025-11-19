@@ -1,18 +1,35 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useAuthStore } from '@/stores/authStore';
-import { LogIn } from 'lucide-react';
+import { LogIn, Eye, EyeOff } from 'lucide-react';
+import { ButtonLoading } from '@/components/LoadingSpinner';
+
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading, error } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
     try {
-      await login(email, password);
+      await login(data.email, data.password);
       navigate('/dashboard');
     } catch {
       // Error is handled by the store
@@ -35,45 +52,80 @@ export default function Login() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
             Email Address
           </label>
           <input
+            {...register('email')}
             id="email"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="input"
+            className={`input ${errors.email ? 'border-red-500 focus:ring-red-500' : ''}`}
             placeholder="your@email.com"
             autoComplete="email"
+            disabled={isLoading}
           />
+          {errors.email && (
+            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          )}
         </div>
 
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
             Password
           </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="input"
-            placeholder="••••••••"
-            autoComplete="current-password"
-          />
+          <div className="relative">
+            <input
+              {...register('password')}
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              className={`input pr-12 ${errors.password ? 'border-red-500 focus:ring-red-500' : ''}`}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              disabled={isLoading}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            >
+              {showPassword ? (
+                <EyeOff size={20} className="text-gray-400" />
+              ) : (
+                <Eye size={20} className="text-gray-400" />
+              )}
+            </button>
+          </div>
+          {errors.password && (
+            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="text-sm">
+            <Link 
+              to="/forgot-password" 
+              className="text-primary-800 hover:text-primary-900 font-medium"
+            >
+              Forgot your password?
+            </Link>
+          </div>
         </div>
 
         <button
           type="submit"
           disabled={isLoading}
-          className="btn-primary w-full py-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-primary w-full py-3 text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Signing In...' : 'Sign In'}
+          {isLoading ? (
+            <>
+              <ButtonLoading />
+              Signing In...
+            </>
+          ) : (
+            'Sign In'
+          )}
         </button>
       </form>
 

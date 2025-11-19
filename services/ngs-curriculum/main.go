@@ -56,6 +56,16 @@ func main() {
 	}
 	defer db.Close()
 
+	// Seed curriculum levels (idempotent)
+	if err := services.SeedCurriculumLevels(db, cfg.LevelUpXPThresholds); err != nil {
+		log.Fatalf("Failed to seed curriculum levels: %v", err)
+	}
+
+	// Seed baseline lessons (idempotent)
+	if err := services.SeedLessons(db); err != nil {
+		log.Fatalf("Failed to seed lessons: %v", err)
+	}
+
 	// Initialize services
 	progressService := services.NewProgressService(db, cfg)
 	lessonService := services.NewLessonService(db)

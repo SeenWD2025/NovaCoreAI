@@ -13,7 +13,7 @@ DB_HOST=${POSTGRES_HOST:-localhost}
 DB_PORT=${POSTGRES_PORT:-5432}
 DB_NAME=${POSTGRES_DB:-noble_novacore}
 DB_USER=${POSTGRES_USER:-noble}
-DB_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+DB_PASSWORD=${POSTGRES_PASSWORD:-novacoreAI2025}
 
 echo "🚀 Applying NGS Curriculum Migrations"
 echo "Database: $DB_HOST:$DB_PORT/$DB_NAME"

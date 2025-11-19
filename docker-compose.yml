@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   postgres:
     image: pgvector/pgvector:pg15
     container_name: noble-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-noble}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-novacoreAI2025}
       POSTGRES_DB: ${POSTGRES_DB:-noble_novacore}
     ports:
       - "5432:5432"
@@ -72,7 +70,7 @@ services:
     environment:
       - PORT=5000
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET:-development-secret-change-in-production}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-refresh-secret-change-in-production}
@@ -113,7 +111,7 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET:-development-secret-change-in-production}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-refresh-secret-change-in-production}
@@ -147,8 +145,8 @@ services:
       - ./.env
     environment:
       - PORT=8000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
-      - TEST_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - TEST_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - LLM_MODEL=${LLM_MODEL:-mistral:instruct}
       - GPU_ENABLED=${GPU_ENABLED:-false}
@@ -191,7 +189,7 @@ services:
       - ./.env
     environment:
       - PORT=8001
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - REDIS_URL=redis://redis:6379
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     ports:
@@ -210,7 +208,7 @@ services:
       - ./.env
     environment:
       - PORT=9000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173}
     ports:
@@ -242,7 +240,7 @@ services:
       - ./.env
     environment:
       - PORT=4000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     ports:
       - "4000:4000"
@@ -262,7 +260,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/3
       - MEMORY_SERVICE_URL=http://memory:8001
       - POLICY_SERVICE_URL=http://noble-spirit:4000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-changeme-service-secret}
     depends_on:
       redis:
@@ -279,7 +277,7 @@ services:
     env_file:
       - ./.env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - MEMORY_SERVICE_URL=http://memory:8001
       - POLICY_SERVICE_URL=http://noble-spirit:4000
       - LTM_PROMOTION_THRESHOLD=${LTM_PROMOTION_THRESHOLD:-3}
@@ -317,7 +315,7 @@ services:
     environment:
       - NOTES_HOST=0.0.0.0
       - NOTES_PORT=8085
-      - NOTES_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - NOTES_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - NOTES_DATABASE_POOL_SIZE=5
       - NOTES_DATABASE_MAX_OVERFLOW=5
       - NOTES_NOTES_TABLE=structured_notes
@@ -342,7 +340,7 @@ services:
       - STUDY_HOST=0.0.0.0
       - STUDY_PORT=8090
       - STUDY_NOTES_SERVICE_URL=http://notes-api:8085
-      - STUDY_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - STUDY_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - STUDY_DATABASE_POOL_SIZE=5
       - STUDY_DATABASE_MAX_OVERFLOW=5
       - STUDY_QUIZ_ARTIFACTS_TABLE=study_quiz_artifacts
@@ -367,7 +365,7 @@ services:
     environment:
       - QUIZ_HOST=0.0.0.0
       - QUIZ_PORT=8091
-      - QUIZ_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}
+      - QUIZ_DATABASE_URL=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}
       - QUIZ_DATABASE_POOL_SIZE=5
       - QUIZ_DATABASE_MAX_OVERFLOW=5
       - QUIZ_QUIZ_ARTIFACTS_TABLE=study_quiz_artifacts
@@ -422,7 +420,7 @@ services:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: noble-postgres-exporter
     environment:
-      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-noble}:${POSTGRES_PASSWORD:-novacoreAI2025}@postgres:5432/${POSTGRES_DB:-noble_novacore}?sslmode=disable
     ports:
       - "9187:9187"
     depends_on:

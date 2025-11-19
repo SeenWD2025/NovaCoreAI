@@ -1,7 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader, Brain, MessageSquare, Sparkles, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Send, Bot, User, Loader, Brain, MessageSquare, Sparkles, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import type { Message } from '@/types/chat';
 import chatService from '@/services/chat';
+import { ChatSkeleton } from '@/components/SkeletonLoader';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import Alert from '@/components/Alert';
+import { useWebSocketChat } from '@/utils/useWebSocketChat';
 
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -9,7 +13,44 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [streamingMessage, setStreamingMessage] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // WebSocket connection for real-time streaming
+  const {
+    isConnected: wsConnected,
+    isConnecting: wsConnecting,
+    sendMessage: sendWSMessage
+  } = useWebSocketChat({
+    onMessage: handleStreamingMessage,
+    onError: (error) => console.error('WebSocket error:', error),
+  });
+
+  function handleStreamingMessage(chunk: string) {
+    if (chunk === '[STREAM_START]') {
+      setIsStreaming(true);
+      setStreamingMessage('');
+      setIsLoading(false);
+    } else if (chunk === '[STREAM_END]') {
+      // Finalize the streaming message
+      if (streamingMessage.trim()) {
+        const finalMessage: Message = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: streamingMessage.trim(),
+          timestamp: new Date().toISOString(),
+          session_id: sessionId || undefined,
+        };
+        setMessages(prev => [...prev, finalMessage]);
+      }
+      setIsStreaming(false);
+      setStreamingMessage('');
+    } else {
+      setStreamingMessage(prev => prev + chunk);
+    }
+  }
 
   useEffect(() => {
     // Create a new session on mount
@@ -27,6 +68,8 @@ export default function Chat() {
       setSessionId(session.id);
     } catch (error) {
       console.error('Failed to create session:', error);
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -93,18 +136,22 @@ export default function Chat() {
     }
   };
 
+  if (initialLoading) {
+    return (
+      <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
+        <ChatSkeleton />
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
-      {/* Quota Exceeded Banner */}
-      {quotaExceeded && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-red-800 mb-1">
-                Daily Quota Exceeded
-              </h3>
-              <p className="text-sm text-red-700 mb-2">
+    <ErrorBoundary>
+      <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
+        {/* Quota Exceeded Banner */}
+        {quotaExceeded && (
+          <div className="mb-4">
+            <Alert type="error" title="Daily Quota Exceeded">
+              <p className="mb-2">
                 You've reached your daily usage limit. Upgrade to continue using the AI assistant or wait until tomorrow when your quota resets.
               </p>
               <div className="flex gap-2">
@@ -121,10 +168,9 @@ export default function Chat() {
                   Dismiss
                 </button>
               </div>
-            </div>
+            </Alert>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Header */}
       <div className="card mb-4">
@@ -280,6 +326,6 @@ export default function Chat() {
           </div>
         </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }

@@ -8,6 +8,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
+import Redis from 'ioredis';
 import { generateServiceToken, serviceAuthMiddleware } from './middleware/service-auth';
 import { metricsMiddleware } from './middleware/metrics-middleware';
 import { correlationIdMiddleware } from './middleware/correlation-id';
@@ -165,8 +166,58 @@ const checkServiceHealth = async (name: string, baseUrl: string): Promise<Servic
 };
 
 const userTierCache = new Map<string, { tier: string; expiresAt: number }>();
-const USER_TIER_CACHE_TTL_MS = 60_000;
+const USER_TIER_CACHE_TTL_MS = 10_000; // Reduced from 60s to 10s (Issue #10)
 const MAX_USER_TIER_CACHE_ENTRIES = 1000;
+
+// Redis Cache Invalidation Setup (Issue #10)
+let redisSubscriber: Redis | null = null;
+try {
+  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  redisSubscriber = new Redis(redisUrl, {
+    retryStrategy: (times) => Math.min(times * 50, 2000),
+  });
+  
+  redisSubscriber.subscribe('user_tier_changed', (err, count) => {
+    if (err) {
+      console.error('Failed to subscribe to user_tier_changed:', err);
+    } else {
+      console.log(`Subscribed to ${count} Redis channels for cache invalidation`);
+    }
+  });
+  
+  redisSubscriber.on('message', (channel, message) => {
+    if (channel === 'user_tier_changed') {
+      try {
+        const { userId, newTier } = JSON.parse(message);
+        
+        // Invalidate cache entry
+        const wasPresent = userTierCache.has(userId);
+        userTierCache.delete(userId);
+        
+        console.log('Cache invalidated for user tier change:', { 
+          userId, 
+          newTier, 
+          wasPresent,
+          cacheSize: userTierCache.size 
+        });
+        
+        // Optionally, pre-populate with new tier to avoid immediate re-fetch
+        if (newTier) {
+          setCachedTier(userId, newTier);
+        }
+      } catch (error) {
+        console.error('Failed to parse user_tier_changed message:', error, { message });
+      }
+    }
+  });
+  
+  redisSubscriber.on('error', (error) => {
+    console.warn('Redis subscriber error (cache invalidation disabled):', error.message);
+  });
+  
+} catch (error) {
+  console.warn('Redis cache invalidation disabled:', error.message);
+}
 
 const getCachedTier = (userId: string) => {
   const cached = userTierCache.get(userId);
@@ -326,6 +377,44 @@ app.use(helmet({
     preload: true,
   },
 }));
+
+// STRIPE WEBHOOK ROUTE (Issue #7 Fix)
+// Must be BEFORE JSON body parser to preserve raw body for signature verification
+app.use('/api/billing/webhooks', express.raw({ type: 'application/json' }));
+app.use(
+  '/api/billing/webhooks',
+  createProxyMiddleware({
+    target: AUTH_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/billing/webhooks': '/billing/webhooks',
+    },
+    onProxyReq: (proxyReq, req) => {
+      // Forward raw body for Stripe signature verification
+      if (req.body && Buffer.isBuffer(req.body)) {
+        proxyReq.setHeader('Content-Type', 'application/json');
+        proxyReq.setHeader('Content-Length', req.body.length);
+        proxyReq.write(req.body);
+      }
+      // Forward Stripe signature header
+      if (req.headers['stripe-signature']) {
+        proxyReq.setHeader('Stripe-Signature', req.headers['stripe-signature']);
+      }
+      console.log('Stripe webhook forwarded:', {
+        path: req.path,
+        bodyLength: req.body ? req.body.length : 0,
+        hasSignature: !!req.headers['stripe-signature'],
+      });
+    },
+    onError: (err, req, res: any) => {
+      console.error('Stripe webhook proxy error:', err.message);
+      res.status(503).json({
+        error: 'Webhook proxy error',
+        message: err.message,
+      });
+    },
+  })
+);
 
 // Request size limits (security)
 app.use(express.json({ limit: '10mb' }));
@@ -558,9 +647,16 @@ app.use(
   })
 );
 
-// Billing service proxy (requires authentication)
+// Billing service proxy (requires authentication, excludes webhooks)
 app.use(
   '/api/billing',
+  (req, res, next) => {
+    // Skip authentication for webhook endpoint (handled separately above)
+    if (req.path.startsWith('/webhooks')) {
+      return res.status(404).json({ error: 'Use /api/billing/webhooks route' });
+    }
+    next();
+  },
   authenticateToken,
   createProxyMiddleware({
     target: AUTH_SERVICE_URL,

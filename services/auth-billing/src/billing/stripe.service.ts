@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import Stripe from 'stripe';
 import { DatabaseService } from '../database/database.service';
 import { EmailService } from '../email/email.service';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class StripeService {
@@ -11,6 +12,7 @@ export class StripeService {
   constructor(
     private readonly db: DatabaseService,
     private readonly emailService: EmailService,
+    private readonly redisService: RedisService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
       apiVersion: '2023-10-16',
@@ -206,13 +208,26 @@ export class StripeService {
       const priceId = subscription.items.data[0].price.id;
       const newTier = this.mapPriceIdToTier(priceId);
       if (newTier !== 'free_trial' && newTier !== tier) {
+        const oldTier = tier;
         tier = newTier;
         // Update tier in users table if it changed
         await this.db.query(
           `UPDATE users SET subscription_tier = $1 WHERE id = $2`,
           [tier, userId],
         );
-        console.log(`Subscription tier changed to ${tier} for user ${userId}`);
+        console.log(`Subscription tier changed from ${oldTier} to ${tier} for user ${userId}`);
+        
+        // Notify Gateway to invalidate user tier cache (Issue #10)
+        try {
+          await this.redisService.getClient().publish(
+            'user_tier_changed', 
+            JSON.stringify({ userId, oldTier, newTier: tier })
+          );
+          console.log(`Cache invalidation published for user ${userId} tier change`);
+        } catch (error) {
+          // Don't fail the whole process if Redis is down
+          console.warn(`Failed to publish cache invalidation for user ${userId}:`, error.message);
+        }
       }
     }
 
@@ -248,6 +263,23 @@ export class StripeService {
       `UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE stripe_subscription_id = $2`,
       ['canceled', subscription.id],
     );
+
+    // Also update user tier to free_restricted
+    await this.db.query(
+      `UPDATE users SET subscription_tier = 'free_restricted' WHERE id = $1`,
+      [userId],
+    );
+
+    // Notify Gateway to invalidate user tier cache (Issue #10)
+    try {
+      await this.redisService.getClient().publish(
+        'user_tier_changed', 
+        JSON.stringify({ userId, oldTier: 'unknown', newTier: 'free_restricted' })
+      );
+      console.log(`Cache invalidation published for user ${userId} subscription cancellation`);
+    } catch (error) {
+      console.warn(`Failed to publish cache invalidation for user ${userId}:`, error.message);
+    }
 
     await this.db.query(
       `UPDATE users SET subscription_tier = $1 WHERE id = $2`,

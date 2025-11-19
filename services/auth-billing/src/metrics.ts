@@ -117,3 +117,50 @@ export const sessionDurationHistogram = new Histogram({
   buckets: [60, 300, 600, 1800, 3600, 7200, 14400], // 1min to 4hrs
   registers: [register]
 });
+
+// Service-to-service auth metrics (Issue #1)
+export const serviceAuthAttempts = new Counter({
+  name: 'service_auth_attempts_total',
+  help: 'Service authentication attempts',
+  labelNames: ['service', 'result'], // result: 'success', 'failure'
+  registers: [register]
+});
+
+// Usage tracking metrics (Issue #5)
+export const usageRecordingAttempts = new Counter({
+  name: 'usage_recording_attempts_total',
+  help: 'Usage recording attempts from other services',
+  labelNames: ['resource_type', 'result'], // result: 'success', 'failure'
+  registers: [register]
+});
+
+// Redis health metrics (Issue #8)
+export const redisErrorsTotal = new Counter({
+  name: 'redis_errors_total',
+  help: 'Total number of Redis operation errors',
+  labelNames: ['operation'], // 'get', 'set', 'incr', 'del'
+  registers: [register]
+});
+
+// Database connection pool metrics (Issue #12)
+export const dbPoolConnections = new Gauge({
+  name: 'db_pool_connections',
+  help: 'Database connection pool status',
+  labelNames: ['state'], // 'total', 'idle', 'waiting'
+  registers: [register]
+});
+
+export const dbConnectionPoolUtilization = new Gauge({
+  name: 'db_connection_pool_utilization',
+  help: 'Database connection pool utilization percentage',
+  registers: [register]
+});
+
+// Trial expiration metrics (Issue #6)
+export const trialExpirationChecks = new Counter({
+  name: 'trial_expiration_checks_total',
+  help: 'Trial expiration checks and actions',
+  labelNames: ['action'], // 'expired', 'reminded', 'skipped'
+  registers: [register]
+});
+

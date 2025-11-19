@@ -14,6 +14,8 @@
 - Agent creation unlocks at Level 12 (5,000 XP)
 - Dynamic level-up system with automatic progression tracking
 
+- Auto-seeded curriculum levels + baseline lessons (idempotent on startup)
+
 ### XP Event System
 - **Lesson Completion**: 50 XP
 - **Perfect Quiz**: 100 XP
@@ -24,6 +26,8 @@
 - **Helping Others**: 10 XP
 - **Creative Solution**: 75 XP
 - **Challenge Solved**: 100 XP
+- Tracks auto-generated CS, Data Science, Ethical AI, and ML/AI Engineering lessons per level (Beginner→Expert)
+
 - **Daily Streak**: 20 XP
 
 ### Achievement System
