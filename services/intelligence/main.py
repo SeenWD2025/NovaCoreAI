@@ -11,7 +11,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from app.config import settings
 from app.database import test_connection
 from app.services.llm_router import llm_orchestrator
-from app.routers import chat, quiz
+from app.routers import chat, quiz, educator
 from app.models.schemas import HealthResponse, LLMProviderStatus
 from app.middleware import CorrelationIdMiddleware
 
@@ -79,6 +79,7 @@ app.add_middleware(CorrelationIdMiddleware)
 # Include routers
 app.include_router(chat.router)
 app.include_router(quiz.router)
+app.include_router(educator.router)
 
 # Add Prometheus metrics with custom metrics
 instrumentator = Instrumentator(
@@ -140,6 +141,8 @@ async def root():
             "sessions": "/chat/sessions",
             "history": "/chat/history/{session_id}",
             "quiz": "/quiz/generate",
+            "educator_generate": "/educator/generate",
+            "educator_chat": "/educator/chat/message",
         }
     }
 

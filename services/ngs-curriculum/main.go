@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"noble-ngs-curriculum/internal/clients/intelligence"
 	"noble-ngs-curriculum/internal/config"
 	"noble-ngs-curriculum/internal/database"
 	"noble-ngs-curriculum/internal/handlers"
@@ -18,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -71,9 +73,35 @@ func main() {
 	lessonService := services.NewLessonService(db)
 	challengeService := services.NewChallengeService(db)
 
+	// Initialize Intelligence client
+	intelligenceURL := os.Getenv("INTELLIGENCE_SERVICE_URL")
+	if intelligenceURL == "" {
+		intelligenceURL = "http://localhost:8000"
+	}
+	
+	serviceJWTSecret := os.Getenv("SERVICE_JWT_SECRET")
+	if serviceJWTSecret == "" {
+		log.Fatal("SERVICE_JWT_SECRET environment variable is required")
+	}
+	
+	getServiceToken := func() string {
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"service": "ngs-curriculum",
+			"exp":     time.Now().Add(24 * time.Hour).Unix(),
+		})
+		tokenString, err := token.SignedString([]byte(serviceJWTSecret))
+		if err != nil {
+			log.Printf("Failed to generate service token: %v", err)
+			return ""
+		}
+		return tokenString
+	}
+	
+	intelligenceClient := intelligence.NewClient(intelligenceURL, getServiceToken)
+
 	// Initialize handlers
 	handler := handlers.NewHandler(progressService)
-	lessonHandler := handlers.NewLessonHandler(lessonService)
+	lessonHandler := handlers.NewLessonHandler(lessonService, intelligenceClient)
 	challengeHandler := handlers.NewChallengeHandler(challengeService)
 
 	// Create Fiber app
@@ -142,6 +170,11 @@ func main() {
 	app.Get("/ngs/levels/:level/lessons", lessonHandler.GetLessonsByLevel)
 	app.Get("/ngs/lessons/:id", lessonHandler.GetLesson)
 	app.Post("/ngs/lessons/:id/complete", lessonHandler.CompleteLessonHandler)
+	
+	// Intelligent lesson generation routes
+	app.Post("/ngs/lessons/:id/generate", lessonHandler.GenerateLesson)
+	app.Get("/ngs/lessons/:id/content", lessonHandler.GetLessonContent)
+	app.Post("/ngs/lessons/:id/chat/message", lessonHandler.SendEducatorChatMessage)
 
 	// Reflection routes
 	app.Get("/ngs/reflections", lessonHandler.GetReflections)

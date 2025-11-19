@@ -1,0 +1,218 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://novacore.ai/schemas/structured-lesson.json",
+  "title": "StructuredLesson",
+  "description": "Schema for AI-generated lesson content with teach-before-assign pedagogy",
+  "type": "object",
+  "required": ["metadata", "teach", "guided_practice", "assessment", "summary"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["title", "outcomes", "difficulty", "estimated_minutes"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Lesson title"
+        },
+        "outcomes": {
+          "type": "array",
+          "description": "Learning outcomes",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["beginner", "intermediate", "advanced", "expert"],
+          "description": "Difficulty level"
+        },
+        "prerequisites": {
+          "type": "array",
+          "description": "Prerequisites for this lesson",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "estimated_minutes": {
+          "type": "integer",
+          "description": "Estimated time to complete in minutes",
+          "minimum": 1
+        }
+      }
+    },
+    "teach": {
+      "type": "object",
+      "required": ["overview", "concepts", "steps"],
+      "properties": {
+        "overview": {
+          "type": "string",
+          "description": "High-level overview of the lesson"
+        },
+        "concepts": {
+          "type": "array",
+          "description": "Key concepts to teach",
+          "items": {
+            "type": "object",
+            "required": ["name", "explanation", "example"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Concept name"
+              },
+              "explanation": {
+                "type": "string",
+                "description": "Detailed explanation"
+              },
+              "example": {
+                "type": "string",
+                "description": "Concrete example"
+              },
+              "analogy": {
+                "type": "string",
+                "description": "Optional analogy to aid understanding"
+              }
+            }
+          },
+          "minItems": 1
+        },
+        "steps": {
+          "type": "array",
+          "description": "Step-by-step instructions",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "visuals": {
+          "type": "array",
+          "description": "Descriptions of visual aids or diagrams",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "guided_practice": {
+      "type": "array",
+      "description": "Scaffolded practice tasks",
+      "items": {
+        "type": "object",
+        "required": ["task", "hint", "solution"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "Practice task description"
+          },
+          "hint": {
+            "type": "string",
+            "description": "Hint to help learner"
+          },
+          "solution": {
+            "type": "string",
+            "description": "Complete solution with explanation"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "assessment": {
+      "type": "object",
+      "required": ["checks"],
+      "properties": {
+        "checks": {
+          "type": "array",
+          "description": "Checks for understanding",
+          "items": {
+            "type": "object",
+            "required": ["type", "question", "answer", "explanation"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["mcq", "short_answer", "true_false"],
+                "description": "Question type"
+              },
+              "question": {
+                "type": "string",
+                "description": "Question text"
+              },
+              "choices": {
+                "type": "array",
+                "description": "Answer choices (for MCQ)",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "answer": {
+                "description": "Correct answer (index for MCQ, text for short answer)",
+                "oneOf": [
+                  {"type": "integer"},
+                  {"type": "string"},
+                  {"type": "boolean"}
+                ]
+              },
+              "explanation": {
+                "type": "string",
+                "description": "Explanation of the correct answer"
+              }
+            }
+          },
+          "minItems": 1
+        },
+        "rubric": {
+          "type": "string",
+          "description": "Assessment rubric or grading criteria"
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Lesson summary and key takeaways"
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "Generated artifacts for integration with other services",
+      "properties": {
+        "quiz_items": {
+          "type": "array",
+          "description": "Quiz items for Quiz Engine",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        },
+        "notes_outline": {
+          "type": "array",
+          "description": "Notes outline for Notes API",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        },
+        "code_snippets": {
+          "type": "array",
+          "description": "Code snippets for practice",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        },
+        "glossary": {
+          "type": "array",
+          "description": "Glossary of terms",
+          "items": {
+            "type": "object",
+            "properties": {
+              "term": {"type": "string"},
+              "definition": {"type": "string"}
+            }
+          },
+          "default": []
+        }
+      },
+      "default": {}
+    }
+  }
+}
